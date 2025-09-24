@@ -1,0 +1,129 @@
+.sidebar{
+  display: flex;
+  background-color: #0A1310;
+  color: #fff;
+  padding: 20px;
+  width: 236px;
+  height: 100vh;
+  text-align:left;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  flex-shrink: 0;  
+  overflow: hidden;
+  position: fixed;   /* makes it stay in place */
+  top: 0;
+  left: 0;
+}
+.sidebar ul{
+  list-style: none;
+}
+.sidebar li{
+  margin: 22px 0;
+  transition: transform 0.2s ease, colo 0.2s ease;
+  border-left: 4px solid transparent; /* 👈 invisible by default */
+}
+
+.sidebar li:hover{
+  color: #1db954;
+  transform: scale(1,1);
+  opacity: 1;
+}
+
+.Acc{
+  font-size: 17px;
+  opacity: 0.7;
+  margin-bottom: 49px;
+  text-align: center;
+  transition: transform 0.2s ease, colo 0.2s ease;
+}
+
+.Acc:hover{
+  color: #1db954;
+  transform: scale(1,1);
+  opacity: 1;
+}
+
+.icon{
+  width:21px;
+  height: 21px;
+  margin-right: 17px;
+  object-fit: contain;
+}
+.Title{
+  text-align: center;
+}
+a {
+  text-decoration: none;
+  color: white;  
+}
+
+a:hover {
+  color: #1db954; 
+  font-weight: bold;
+}
+.layout{
+  display: flex;
+}
+
+.main{
+  margin-left: 600px;
+  padding: 60px;
+}
+.hello{
+  color: #fff;
+}
+.slider {
+  position: relative;
+  width: 420px;
+  height: 240px;
+  overflow: hidden;
+}
+
+.slider img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.5s ease, filter 0.5s ease;
+}
+
+.slider img.blurred {
+  filter: blur(8px) brightness(0.6); /* blur + darken */
+  opacity: 0.6; /* slightly transparent */
+}
+
+.slider img.active {
+  filter: none; /* no blur */
+  opacity: 1;
+  z-index: 1; /* on top of others */
+}
+.btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.5); /* dark transparent */
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 50%;
+  z-index: 2; /* make sure it's above images */
+}
+
+/* Place left button on the left */
+.btn:first-of-type {
+  left: 10px;
+}
+
+/* Place right button on the right */
+.btn:last-of-type {
+  right: 10px;
+}
+
+.btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
