@@ -1,4 +1,4 @@
 # We-Vibe
 
-A music platform where in users can play, browse, and share music. 
+A music platform wherein users can play, browse, and share music. 
 (will edit this laterrrr :>)
