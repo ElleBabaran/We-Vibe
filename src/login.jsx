@@ -1,4 +1,5 @@
 import React from "react";
+import "./App.css";
 
 // --- PKCE Helper Functions (Embedded to resolve dependency error) ---
 
@@ -31,14 +32,18 @@ async function generateCodeChallenge(codeVerifier) {
 }
 
 // Spotify Application Constants
-const CLIENT_ID = "ddf0c76f108e48229461ed6a31574a9f"; // <-- your client id
+const CLIENT_ID = "ddf0c76f108e48229461ed6a31574a9f";
 const REDIRECT_URI = "http://127.0.0.1:5173/callback";
 const AUTH_ENDPOINT = "https://accounts.spotify.com/authorize";
 const SCOPES = [
   "user-read-private",
   "user-read-email",
   "playlist-read-private",
-  "playlist-modify-private"
+  "playlist-modify-private",
+  "streaming",
+  "user-read-playback-state",
+  "user-read-currently-playing",
+  "user-modify-playback-state"
 ].join(" ");
 
 export default function Login() {
@@ -65,35 +70,17 @@ export default function Login() {
   };
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      minHeight: '100vh',
-      backgroundColor: '#121212', // Dark background inspired by Spotify
-    }}>
-      <button 
-        onClick={handleLogin}
-        style={{
-          padding: '12px 30px',
-          fontSize: '18px',
-          fontWeight: 'bold',
-          color: 'white',
-          backgroundColor: '#1DB954', // Spotify Green
-          border: 'none',
-          borderRadius: '9999px',
-          cursor: 'pointer',
-          boxShadow: '0 4px 15px rgba(29, 185, 84, 0.4)',
-          transition: 'transform 0.2s, background-color 0.2s',
-          outline: 'none',
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-        onTouchStart={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-        onTouchEnd={(e) => e.currentTarget.style.transform = 'scale(1)'}
-      >
-        Login with Spotify
-      </button>
+    <div className="login-container">
+      <div className="login-content">
+        <h1 className="login-logo">WeVibe</h1>
+        <p className="login-subtitle">Your music, your vibe 🎵</p>
+        <button 
+          onClick={handleLogin}
+          className="login-button"
+        >
+          Login with Spotify
+        </button>
+      </div>
     </div>
   );
 }
