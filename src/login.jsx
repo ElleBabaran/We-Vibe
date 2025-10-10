@@ -32,7 +32,7 @@ async function generateCodeChallenge(codeVerifier) {
 }
 
 // Spotify Application Constants
-const CLIENT_ID = "ddf0c76f108e48229461ed6a31574a9f";
+const CLIENT_ID = "2bbf168c93cc42a792d17ed4d6739b72";
 const REDIRECT_URI = "http://127.0.0.1:5173/callback";
 const AUTH_ENDPOINT = "https://accounts.spotify.com/authorize";
 const SCOPES = [

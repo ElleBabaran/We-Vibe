@@ -16,7 +16,7 @@ function Callback() {
     const codeVerifier = localStorage.getItem("spotify_code_verifier");
 
     const body = new URLSearchParams({
-      client_id: "ddf0c76f108e48229461ed6a31574a9f",
+      client_id: "2bbf168c93cc42a792d17ed4d6739b72",
       grant_type: "authorization_code",
       code,
       redirect_uri: "http://127.0.0.1:5173/callback",
