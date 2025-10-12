@@ -15,6 +15,8 @@ function Playlist() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
+  const [playlistImage, setPlaylistImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -47,6 +49,31 @@ function Playlist() {
     addTrackToQueue(track);
     navigate('/playback');
     playTrackFromQueue(queue.length); // Play the newly added track
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPlaylistImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const convertImageToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        // Remove the data URL prefix to get just the base64 string
+        const base64 = reader.result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   };
 
   const playPlaylist = () => {
@@ -89,9 +116,36 @@ function Playlist() {
 
       if (response.ok) {
         const newPlaylist = await response.json();
+        
+        // Upload playlist image if provided
+        if (playlistImage) {
+          try {
+            const base64Image = await convertImageToBase64(playlistImage);
+            const imageResponse = await fetch(
+              `https://api.spotify.com/v1/playlists/${newPlaylist.id}/images`,
+              {
+                method: "PUT",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "image/jpeg",
+                },
+                body: base64Image,
+              }
+            );
+            
+            if (!imageResponse.ok) {
+              console.warn("Failed to upload playlist image");
+            }
+          } catch (imageError) {
+            console.error("Error uploading playlist image:", imageError);
+          }
+        }
+        
         alert(`Playlist "${newPlaylistName}" created successfully!`);
         setNewPlaylistName('');
         setNewPlaylistDescription('');
+        setPlaylistImage(null);
+        setImagePreview(null);
         setShowCreateForm(false);
       } else {
         alert('Failed to create playlist');
@@ -163,6 +217,102 @@ function Playlist() {
             <h1 style={{ fontSize: '2.5rem', marginBottom: '30px', color: '#fff', textAlign: 'center' }}>
               Create New Playlist
             </h1>
+            
+            {/* Image Upload Section */}
+            <div style={{ marginBottom: '30px', textAlign: 'center' }}>
+              <label style={{ display: 'block', marginBottom: '12px', color: '#fff', fontWeight: 'bold' }}>
+                Playlist Cover Image (Optional)
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
+                {imagePreview ? (
+                  <div style={{ position: 'relative' }}>
+                    <img
+                      src={imagePreview}
+                      alt="Playlist cover preview"
+                      style={{
+                        width: '200px',
+                        height: '200px',
+                        objectFit: 'cover',
+                        borderRadius: '8px',
+                        border: '2px solid #282828'
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        setPlaylistImage(null);
+                        setImagePreview(null);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '10px',
+                        right: '10px',
+                        backgroundColor: 'rgba(0,0,0,0.7)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '30px',
+                        height: '30px',
+                        cursor: 'pointer',
+                        fontSize: '16px'
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      width: '200px',
+                      height: '200px',
+                      border: '2px dashed #282828',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#181818',
+                      color: '#b3b3b3',
+                      fontSize: '48px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onClick={() => document.getElementById('image-upload').click()}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = '#1DB954';
+                      e.currentTarget.style.color = '#1DB954';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = '#282828';
+                      e.currentTarget.style.color = '#b3b3b3';
+                    }}
+                  >
+                    🖼️
+                  </div>
+                )}
+                <input
+                  id="image-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  style={{ display: 'none' }}
+                />
+                <button
+                  onClick={() => document.getElementById('image-upload').click()}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: 'transparent',
+                    color: '#1DB954',
+                    border: '2px solid #1DB954',
+                    borderRadius: '20px',
+                    fontSize: '0.9rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {imagePreview ? 'Change Image' : 'Upload Image'}
+                </button>
+              </div>
+            </div>
             
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#fff', fontWeight: 'bold' }}>
