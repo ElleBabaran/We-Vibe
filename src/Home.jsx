@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
 import "./App.css";
 
 function Home() {
   const navigate = useNavigate();
+  const { addTrackToQueue, clearQueue, playTrackFromQueue, queue } = useMusicQueue();
   const [profile, setProfile] = useState(null);
-  const [topTracks, setTopTracks] = useState([]);
+  const [albums, setAlbums] = useState([]);
   const [newReleases, setNewReleases] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -44,17 +46,17 @@ function Home() {
 
   const fetchDiscoverPicks = async (token) => {
     try {
-      // Fetch Top Tracks from a popular playlist
-      const topTracksRes = await fetch(
-        "https://api.spotify.com/v1/playlists/37i9dQZEVXbMDoHDwVN2tF/tracks?limit=10",
+      // Fetch Featured Albums
+      const albumsRes = await fetch(
+        "https://api.spotify.com/v1/browse/new-releases?limit=12",
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      const topTracksData = await topTracksRes.json();
-      setTopTracks(topTracksData.items?.map(item => item.track) || []);
+      const albumsData = await albumsRes.json();
+      setAlbums(albumsData.albums?.items || []);
 
-      // Fetch New Releases
+      // Fetch New Releases - increased to 20
       const newReleasesRes = await fetch(
-        "https://api.spotify.com/v1/browse/new-releases?limit=10",
+        "https://api.spotify.com/v1/browse/new-releases?limit=20",
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const newReleasesData = await newReleasesRes.json();
@@ -68,7 +70,10 @@ function Home() {
   };
 
   const playTrack = (track) => {
-    navigate('/playback', { state: { track } });
+    // Add this track to the queue (don't clear existing queue)
+    addTrackToQueue(track);
+    navigate('/playback');
+    playTrackFromQueue(queue.length); // Play the newly added track
   };
 
   const viewAlbum = (album) => {
@@ -111,71 +116,66 @@ function Home() {
           <p style={{ color: '#b3b3b3' }}>Loading your picks...</p>
         ) : (
           <>
-            {/* Top 10 Global Tracks */}
+            {/* Featured Albums */}
             <div style={{ marginBottom: '50px' }}>
               <h2 style={{ fontSize: '1.8rem', marginBottom: '20px', color: '#fff' }}>
-                🔥 Top 10 Global Hits
+                🎵 Featured Albums
               </h2>
               
-              {topTracks.length === 0 ? (
-                <p style={{ color: '#b3b3b3' }}>No tracks available</p>
+              {albums.length === 0 ? (
+                <p style={{ color: '#b3b3b3' }}>No albums available</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {topTracks.map((track, index) => (
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', 
+                  gap: '20px' 
+                }}>
+                  {albums.map((album) => (
                     <div
-                      key={track?.id || index}
-                      onClick={() => playTrack(track)}
+                      key={album.id}
+                      onClick={() => viewAlbum(album)}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '12px',
                         backgroundColor: '#181818',
-                        borderRadius: '4px',
+                        padding: '15px',
+                        borderRadius: '8px',
                         cursor: 'pointer',
                         transition: 'background-color 0.2s',
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#282828'}
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#181818'}
                     >
-                      <span style={{ 
-                        width: '30px', 
-                        color: index < 3 ? '#1DB954' : '#b3b3b3', 
-                        fontSize: '1.1rem',
-                        fontWeight: 'bold'
-                      }}>
-                        {index + 1}
-                      </span>
-                      
-                      {track?.album?.images?.[0]?.url && (
+                      {album.images?.[0]?.url && (
                         <img
-                          src={track.album.images[0].url}
-                          alt={track.name}
+                          src={album.images[0].url}
+                          alt={album.name}
                           style={{
-                            width: '50px',
-                            height: '50px',
+                            width: '100%',
+                            height: '130px',
                             objectFit: 'cover',
                             borderRadius: '4px',
-                            marginRight: '15px',
+                            marginBottom: '10px',
                           }}
                         />
                       )}
-                      
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontWeight: 'bold', marginBottom: '3px', fontSize: '0.95rem' }}>
-                          {track?.name}
-                        </p>
-                        <p style={{ color: '#b3b3b3', fontSize: '0.85rem' }}>
-                          {track?.artists?.map(a => a.name).join(', ')}
-                        </p>
-                      </div>
-                      
-                      <span style={{ color: '#b3b3b3', fontSize: '0.9rem', marginRight: '15px' }}>
-                        {track?.album?.name}
-                      </span>
-                      
-                      <span style={{ color: '#b3b3b3', fontSize: '0.9rem' }}>
-                        {formatDuration(track?.duration_ms)}
-                      </span>
+                      <p style={{ 
+                        fontWeight: 'bold', 
+                        marginBottom: '5px', 
+                        fontSize: '0.9rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {album.name}
+                      </p>
+                      <p style={{ 
+                        color: '#b3b3b3', 
+                        fontSize: '0.8rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {album.artists?.map(a => a.name).join(', ')}
+                      </p>
                     </div>
                   ))}
                 </div>

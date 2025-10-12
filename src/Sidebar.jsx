@@ -9,7 +9,7 @@ export default function Sidebar() {
         <h2 className='Title'>WeVibe</h2>
       <ul>
         <li>
-          <img src="/Icons/home.png" alt="home" className='icon'/><Link to="/">Home</Link></li>
+          <img src="/Icons/home.png" alt="home" className='icon'/><Link to="/home">Home</Link></li>
         <li> 
           <img src="/Icons/search.png" alt="browse" className='icon'/><Link to="/browse">Browse</Link></li>
         <li>

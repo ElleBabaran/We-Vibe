@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
 import "./App.css";
 
@@ -7,6 +8,7 @@ function AlbumView() {
   const location = useLocation();
   const navigate = useNavigate();
   const album = location.state?.album;
+  const { addAlbumToQueue, clearQueue, playTrackFromQueue, addTrackToQueue, queue } = useMusicQueue();
   
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,13 +40,32 @@ function AlbumView() {
       });
   }, [album, navigate]);
 
-  const playTrack = (track) => {
+  const playTrack = (track, index = 0) => {
     // Add album info to track object
     const trackWithAlbum = {
       ...track,
       album: album,
     };
-    navigate('/playback', { state: { track: trackWithAlbum } });
+    
+    // Add this single track to the queue (don't clear existing queue)
+    addTrackToQueue(trackWithAlbum);
+    
+    // Navigate to playback and start playing the selected track
+    navigate('/playback');
+    playTrackFromQueue(queue.length); // Play the newly added track
+  };
+
+  const playAlbum = () => {
+    // Play entire album from the beginning
+    const tracksWithAlbum = tracks.map(t => ({
+      ...t,
+      album: album,
+    }));
+    
+    clearQueue();
+    addAlbumToQueue(tracksWithAlbum, 0);
+    navigate('/playback');
+    playTrackFromQueue(0);
   };
 
   const formatDuration = (ms) => {
@@ -104,7 +125,7 @@ function AlbumView() {
             }}>
               {album.name}
             </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#b3b3b3' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#b3b3b3', marginBottom: '20px' }}>
               <span style={{ fontWeight: 'bold', color: '#fff' }}>
                 {album.artists?.map(a => a.name).join(', ')}
               </span>
@@ -113,6 +134,32 @@ function AlbumView() {
               <span>•</span>
               <span>{album.total_tracks} songs</span>
             </div>
+            
+            <button
+              onClick={playAlbum}
+              style={{
+                padding: '12px 32px',
+                backgroundColor: '#1DB954',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '24px',
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                boxShadow: '0 4px 12px rgba(29, 185, 84, 0.3)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#1ed760';
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#1DB954';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              ▶️ Play Album
+            </button>
           </div>
         </div>
 
@@ -164,7 +211,7 @@ function AlbumView() {
             {tracks.map((track, index) => (
               <div
                 key={track.id}
-                onClick={() => playTrack(track)}
+                onClick={() => playTrack(track, index)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
