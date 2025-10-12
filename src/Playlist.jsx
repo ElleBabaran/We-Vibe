@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
+import ImageUpload from "./ImageUpload";
+import { hashImage, generatePerceptualHash } from "./cryptoUtils";
 import "./App.css";
 
 function Playlist() {
@@ -15,6 +17,10 @@ function Playlist() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imageHash, setImageHash] = useState('');
+  const [perceptualHash, setPerceptualHash] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -63,6 +69,8 @@ function Playlist() {
     const token = localStorage.getItem("spotify_access_token");
     if (!token || !newPlaylistName.trim()) return;
 
+    setIsUploadingImage(true);
+
     try {
       // Get user ID first
       const userRes = await fetch("https://api.spotify.com/v1/me", {
@@ -89,9 +97,49 @@ function Playlist() {
 
       if (response.ok) {
         const newPlaylist = await response.json();
+        
+        // Upload image if selected
+        if (selectedImage) {
+          try {
+            const formData = new FormData();
+            formData.append('image', selectedImage);
+            
+            // Convert image to base64 for Spotify API
+            const reader = new FileReader();
+            reader.onload = async () => {
+              const base64 = reader.result.split(',')[1];
+              
+              // Upload cover image
+              const imageResponse = await fetch(
+                `https://api.spotify.com/v1/playlists/${newPlaylist.id}/images`,
+                {
+                  method: "PUT",
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "image/jpeg",
+                  },
+                  body: base64,
+                }
+              );
+
+              if (imageResponse.ok) {
+                console.log('Playlist cover image uploaded successfully');
+              } else {
+                console.warn('Failed to upload playlist cover image');
+              }
+            };
+            reader.readAsDataURL(selectedImage);
+          } catch (imageError) {
+            console.error("Error uploading playlist image:", imageError);
+          }
+        }
+
         alert(`Playlist "${newPlaylistName}" created successfully!`);
         setNewPlaylistName('');
         setNewPlaylistDescription('');
+        setSelectedImage(null);
+        setImageHash('');
+        setPerceptualHash('');
         setShowCreateForm(false);
       } else {
         alert('Failed to create playlist');
@@ -99,6 +147,8 @@ function Playlist() {
     } catch (error) {
       console.error("Error creating playlist:", error);
       alert('Error creating playlist');
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
@@ -206,24 +256,39 @@ function Playlist() {
                 }}
               />
             </div>
+
+            <div style={{ marginBottom: '30px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#fff', fontWeight: 'bold' }}>
+                Cover Image (Optional)
+              </label>
+              <ImageUpload
+                onImageSelect={(file, hash, pHash) => {
+                  setSelectedImage(file);
+                  setImageHash(hash);
+                  setPerceptualHash(pHash);
+                }}
+                maxSize={5 * 1024 * 1024} // 5MB
+                acceptedTypes={['image/jpeg', 'image/png', 'image/gif', 'image/webp']}
+              />
+            </div>
             
             <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
               <button
                 onClick={createPlaylist}
-                disabled={!newPlaylistName.trim()}
+                disabled={!newPlaylistName.trim() || isUploadingImage}
                 style={{
                   padding: '12px 24px',
-                  backgroundColor: newPlaylistName.trim() ? '#1DB954' : '#666',
+                  backgroundColor: (newPlaylistName.trim() && !isUploadingImage) ? '#1DB954' : '#666',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '24px',
                   fontSize: '1rem',
                   fontWeight: 'bold',
-                  cursor: newPlaylistName.trim() ? 'pointer' : 'not-allowed',
+                  cursor: (newPlaylistName.trim() && !isUploadingImage) ? 'pointer' : 'not-allowed',
                   transition: 'all 0.2s',
                 }}
               >
-                Create Playlist
+                {isUploadingImage ? 'Creating...' : 'Create Playlist'}
               </button>
               
               <button

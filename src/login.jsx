@@ -1,35 +1,6 @@
 import React from "react";
 import "./App.css";
-
-// --- PKCE Helper Functions (Embedded to resolve dependency error) ---
-
-/**
- * Generates a cryptographically random string (code_verifier) for PKCE.
- * @param {number} length - The desired length of the verifier.
- * @returns {string} The PKCE code verifier string.
- */
-function generateCodeVerifier(length = 128) {
-  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-  let text = "";
-  for (let i = 0; i < length; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
-}
-
-/**
- * Generates the code challenge by SHA-256 hashing and Base64Url encoding the verifier.
- * @param {string} codeVerifier - The PKCE code verifier.
- * @returns {Promise<string>} The PKCE code challenge string.
- */
-async function generateCodeChallenge(codeVerifier) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(codeVerifier);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(digest)));
-  // Convert to Base64url format
-  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
+import { generateCodeVerifier, generateCodeChallenge } from "./cryptoUtils";
 
 // Spotify Application Constants
 const CLIENT_ID = "2bbf168c93cc42a792d17ed4d6739b72";
