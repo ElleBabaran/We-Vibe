@@ -14,6 +14,8 @@ export const MusicQueueProvider = ({ children }) => {
   const [queue, setQueue] = useState([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [repeatMode, setRepeatMode] = useState('off'); // 'off', 'track', 'queue'
+  const [shuffleMode, setShuffleMode] = useState(false);
 
   // Add a single track to the queue
   const addTrackToQueue = useCallback((track) => {
@@ -65,17 +67,74 @@ export const MusicQueueProvider = ({ children }) => {
 
   // Play next track
   const playNext = useCallback(() => {
+    if (repeatMode === 'track') {
+      // Stay on current track
+      return;
+    }
+    
     if (currentTrackIndex < queue.length - 1) {
       setCurrentTrackIndex(prev => prev + 1);
+    } else if (repeatMode === 'queue') {
+      // Loop back to first track
+      setCurrentTrackIndex(0);
     }
-  }, [currentTrackIndex, queue.length]);
+    // If repeatMode is 'off' and we're at the end, do nothing (stop playing)
+  }, [currentTrackIndex, queue.length, repeatMode]);
 
   // Play previous track
   const playPrevious = useCallback(() => {
     if (currentTrackIndex > 0) {
       setCurrentTrackIndex(prev => prev - 1);
+    } else if (repeatMode === 'queue') {
+      // Loop back to last track
+      setCurrentTrackIndex(queue.length - 1);
     }
-  }, [currentTrackIndex]);
+  }, [currentTrackIndex, queue.length, repeatMode]);
+
+  // Auto-advance to next track (called when a track ends)
+  const autoAdvance = useCallback(() => {
+    if (repeatMode === 'track') {
+      // Restart the current track
+      return 'restart';
+    } else if (currentTrackIndex < queue.length - 1) {
+      setCurrentTrackIndex(prev => prev + 1);
+      return 'next';
+    } else if (repeatMode === 'queue') {
+      setCurrentTrackIndex(0);
+      return 'next';
+    } else {
+      // End of queue, stop playing
+      setIsPlaying(false);
+      return 'stop';
+    }
+  }, [currentTrackIndex, queue.length, repeatMode]);
+
+  // Toggle repeat mode
+  const toggleRepeatMode = useCallback(() => {
+    setRepeatMode(prev => {
+      switch (prev) {
+        case 'off': return 'queue';
+        case 'queue': return 'track';
+        case 'track': return 'off';
+        default: return 'off';
+      }
+    });
+  }, []);
+
+  // Toggle shuffle mode
+  const toggleShuffleMode = useCallback(() => {
+    setShuffleMode(prev => !prev);
+  }, []);
+
+  // Check if we can go to next track
+  const canPlayNext = useCallback(() => {
+    return currentTrackIndex < queue.length - 1 || repeatMode === 'queue';
+  }, [currentTrackIndex, queue.length, repeatMode]);
+
+  // Check if we can go to previous track
+  const canPlayPrevious = useCallback(() => {
+    return currentTrackIndex > 0 || repeatMode === 'queue';
+  }, [currentTrackIndex, repeatMode]);
 
   // Get current track
   const getCurrentTrack = useCallback(() => {
@@ -92,6 +151,8 @@ export const MusicQueueProvider = ({ children }) => {
     currentTrackIndex,
     isPlaying,
     setIsPlaying,
+    repeatMode,
+    shuffleMode,
     addTrackToQueue,
     addTracksToQueue,
     addAlbumToQueue,
@@ -100,6 +161,11 @@ export const MusicQueueProvider = ({ children }) => {
     playTrackFromQueue,
     playNext,
     playPrevious,
+    autoAdvance,
+    toggleRepeatMode,
+    toggleShuffleMode,
+    canPlayNext,
+    canPlayPrevious,
     getCurrentTrack,
     getNextTracks,
   };
