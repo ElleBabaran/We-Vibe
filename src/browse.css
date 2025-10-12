@@ -5,6 +5,7 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  max-height: 100vh;
   width: 100vw;
   position: fixed;
   top: 0;
@@ -13,17 +14,42 @@
   padding: 40px 20px;
   z-index: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
   transition: justify-content 0.3s ease;
 }
 
 .browse-container.with-results {
   justify-content: flex-start;
-  padding-top: 60px;
+  padding-top: 30px;
+  padding-bottom: 60px;
+}
+
+/* Custom Scrollbar */
+.browse-container::-webkit-scrollbar {
+  width: 12px;
+}
+
+.browse-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.browse-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+}
+
+.browse-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .browse-header {
-  margin-bottom: 60px;
-  margin-top: -50px; /* Adjust this value to move content up/down */
+  margin-bottom: 40px;
+  flex-shrink: 0;
+}
+
+.browse-container.with-results .browse-header {
+  margin-bottom: 30px;
 }
 
 .browse-title {
@@ -42,7 +68,8 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  
+  flex-shrink: 0;
+  margin-bottom: 20px;
 }
 
 .browse-search-form {
@@ -97,9 +124,11 @@
 .search-results-container {
   width: 100%;
   max-width: 1400px;
-  margin-top: 40px;
-  padding: 0 40px;
+  margin-top: 20px;
+  padding: 0 40px 40px 40px;
   animation: fadeIn 0.3s ease;
+  flex: 1;
+  overflow-y: visible;
 }
 
 @keyframes fadeIn {
@@ -281,7 +310,7 @@
   }
 
   .search-results-container {
-    padding: 0 20px;
+    padding: 0 20px 30px 20px;
   }
 
   .albums-grid,
@@ -292,6 +321,10 @@
 
   .results-title {
     font-size: 1.5rem;
+  }
+
+  .browse-container::-webkit-scrollbar {
+    width: 8px;
   }
 }
 
@@ -314,7 +347,7 @@
   }
 
   .search-results-container {
-    padding: 0 15px;
+    padding: 0 15px 30px 15px;
   }
 
   .albums-grid,
@@ -335,6 +368,10 @@
   .result-artist,
   .result-meta {
     font-size: 0.8rem;
+  }
+
+  .browse-container::-webkit-scrollbar {
+    width: 6px;
   }
 }
 
