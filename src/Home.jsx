@@ -10,6 +10,7 @@ function Home() {
   const [profile, setProfile] = useState(null);
   const [albums, setAlbums] = useState([]);
   const [newReleases, setNewReleases] = useState([]);
+  const [userPlaylists, setUserPlaylists] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,6 +38,7 @@ function Home() {
         console.log("Spotify user data:", data);
         setProfile(data);
         fetchDiscoverPicks(token);
+        fetchUserPlaylists(token);
       })
       .catch(err => {
         console.error("Error fetching user data:", err);
@@ -69,6 +71,19 @@ function Home() {
     }
   };
 
+  const fetchUserPlaylists = async (token) => {
+    try {
+      const response = await fetch(
+        "https://api.spotify.com/v1/me/playlists?limit=20",
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await response.json();
+      setUserPlaylists(data.items || []);
+    } catch (err) {
+      console.error("Error fetching user playlists:", err);
+    }
+  };
+
   const playTrack = (track) => {
     // Add this track to the queue (don't clear existing queue)
     addTrackToQueue(track);
@@ -78,6 +93,10 @@ function Home() {
 
   const viewAlbum = (album) => {
     navigate('/album', { state: { album } });
+  };
+
+  const viewPlaylist = (playlist) => {
+    navigate('/playlist', { state: { playlist } });
   };
 
   const formatDuration = (ms) => {
@@ -241,6 +260,72 @@ function Home() {
                         whiteSpace: 'nowrap'
                       }}>
                         {album.artists?.map(a => a.name).join(', ')}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* User Playlists */}
+            <div style={{ marginBottom: '40px' }}>
+              <h2 style={{ fontSize: '1.8rem', marginBottom: '20px', color: '#fff' }}>
+                🎵 Your Playlists
+              </h2>
+              
+              {userPlaylists.length === 0 ? (
+                <p style={{ color: '#b3b3b3' }}>No playlists found. Create your first playlist!</p>
+              ) : (
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+                  gap: '20px' 
+                }}>
+                  {userPlaylists.map((playlist) => (
+                    <div
+                      key={playlist.id}
+                      style={{
+                        backgroundColor: '#181818',
+                        padding: '15px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.2s',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#282828'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#181818'}
+                      onClick={() => viewPlaylist(playlist)}
+                    >
+                      {playlist.images?.[0]?.url && (
+                        <img
+                          src={playlist.images[0].url}
+                          alt={playlist.name}
+                          style={{
+                            width: '100%',
+                            height: '130px',
+                            objectFit: 'cover',
+                            borderRadius: '4px',
+                            marginBottom: '10px',
+                          }}
+                        />
+                      )}
+                      <p style={{ 
+                        fontWeight: 'bold', 
+                        marginBottom: '5px', 
+                        fontSize: '0.9rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {playlist.name}
+                      </p>
+                      <p style={{ 
+                        color: '#b3b3b3', 
+                        fontSize: '0.8rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {playlist.tracks?.total || 0} songs
                       </p>
                     </div>
                   ))}

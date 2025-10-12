@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
+import { generateFileHash, generatePlaylistHash } from "./utils/hashing";
 import "./App.css";
 
 function Playlist() {
@@ -15,6 +16,9 @@ function Playlist() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
+  const [playlistImage, setPlaylistImage] = useState(null);
+  const [playlistImagePreview, setPlaylistImagePreview] = useState(null);
+  const [playlistHash, setPlaylistHash] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -30,7 +34,11 @@ function Playlist() {
       })
         .then((res) => res.json())
         .then((data) => {
-          setTracks(data.items?.map(item => item.track) || []);
+          const trackList = data.items?.map(item => item.track) || [];
+          setTracks(trackList);
+          // Generate playlist hash for integrity verification
+          const hash = generatePlaylistHash(trackList);
+          setPlaylistHash(hash);
           setLoading(false);
         })
         .catch((err) => {
@@ -106,6 +114,45 @@ function Playlist() {
     const minutes = Math.floor(ms / 60000);
     const seconds = ((ms % 60000) / 1000).toFixed(0);
     return `${minutes}:${seconds.padStart(2, '0')}`;
+  };
+
+  const handleImageUpload = async (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size must be less than 5MB');
+        return;
+      }
+      
+      setPlaylistImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPlaylistImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+      
+      // Generate file hash for integrity
+      try {
+        const fileHash = await generateFileHash(file);
+        console.log('Image file hash:', fileHash);
+      } catch (error) {
+        console.error('Error generating file hash:', error);
+      }
+    }
+  };
+
+  const removeImage = () => {
+    setPlaylistImage(null);
+    setPlaylistImagePreview(null);
   };
 
   if (!playlist && !showCreateForm) {
@@ -206,6 +253,75 @@ function Playlist() {
                 }}
               />
             </div>
+
+            <div style={{ marginBottom: '30px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#fff', fontWeight: 'bold' }}>
+                Playlist Image (Optional)
+              </label>
+              
+              {playlistImagePreview ? (
+                <div style={{ marginBottom: '15px' }}>
+                  <img
+                    src={playlistImagePreview}
+                    alt="Playlist preview"
+                    style={{
+                      width: '200px',
+                      height: '200px',
+                      objectFit: 'cover',
+                      borderRadius: '8px',
+                      border: '2px solid #282828',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    style={{
+                      marginLeft: '10px',
+                      padding: '8px 16px',
+                      backgroundColor: '#ff4444',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    Remove Image
+                  </button>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    border: '2px dashed #282828',
+                    borderRadius: '8px',
+                    padding: '40px',
+                    textAlign: 'center',
+                    backgroundColor: '#181818',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.2s',
+                  }}
+                  onClick={() => document.getElementById('image-upload').click()}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = '#1DB954'}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = '#282828'}
+                >
+                  <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📷</div>
+                  <p style={{ color: '#b3b3b3', margin: '0' }}>
+                    Click to upload playlist image
+                  </p>
+                  <p style={{ color: '#666', fontSize: '0.8rem', margin: '5px 0 0 0' }}>
+                    Max size: 5MB
+                  </p>
+                </div>
+              )}
+              
+              <input
+                id="image-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                style={{ display: 'none' }}
+              />
+            </div>
             
             <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
               <button
@@ -264,9 +380,9 @@ function Playlist() {
           background: 'linear-gradient(180deg, #282828 0%, #121212 100%)',
           borderRadius: '8px',
         }}>
-          {playlist.images?.[0]?.url && (
+          {(playlist.images?.[0]?.url || playlistImagePreview) && (
             <img
-              src={playlist.images[0].url}
+              src={playlistImagePreview || playlist.images[0].url}
               alt={playlist.name}
               style={{
                 width: '232px',
@@ -296,13 +412,32 @@ function Playlist() {
             }}>
               {playlist.name}
             </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#b3b3b3', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#b3b3b3', marginBottom: '10px' }}>
               <span style={{ fontWeight: 'bold', color: '#fff' }}>
                 {playlist.owner?.display_name}
               </span>
               <span>•</span>
               <span>{tracks.length} songs</span>
             </div>
+            
+            {playlistHash && (
+              <div style={{ marginBottom: '20px', fontSize: '0.8rem' }}>
+                <div style={{ color: '#b3b3b3', marginBottom: '5px' }}>
+                  Content Hash (SHA-256):
+                </div>
+                <div style={{ 
+                  fontFamily: 'monospace', 
+                  color: '#1DB954', 
+                  backgroundColor: '#181818', 
+                  padding: '4px 8px', 
+                  borderRadius: '4px',
+                  fontSize: '0.7rem',
+                  wordBreak: 'break-all'
+                }}>
+                  {playlistHash}
+                </div>
+              </div>
+            )}
             
             <button
               onClick={playPlaylist}

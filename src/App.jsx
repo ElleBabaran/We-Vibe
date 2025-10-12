@@ -8,6 +8,7 @@ import AlbumView from "./AlbumView";
 import Browse from "./browse";
 import Account from "./Account";
 import Playlist from "./Playlist";
+import HashingDemo from "./components/HashingDemo";
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="/playback" element={<Playback />} />
           <Route path="/album" element={<AlbumView />} />
           <Route path="/playlist" element={<Playlist />} />
+          <Route path="/hashing" element={<HashingDemo />} />
         </Routes>
       </Router>
     </MusicQueueProvider>
