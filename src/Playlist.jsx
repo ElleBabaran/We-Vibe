@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
+import { MusicUtils, quickSort, shuffle } from "./utils/index.js";
 import Sidebar from "./Sidebar";
 import "./App.css";
 
@@ -15,6 +16,11 @@ function Playlist() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
+  const [newPlaylistImage, setNewPlaylistImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [sortBy, setSortBy] = useState('default');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredTracks, setFilteredTracks] = useState([]);
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -42,6 +48,42 @@ function Playlist() {
     }
   }, [playlist, navigate]);
 
+  // Handle filtering and sorting
+  useEffect(() => {
+    if (!tracks.length) {
+      setFilteredTracks([]);
+      return;
+    }
+
+    let processed = [...tracks];
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      processed = MusicUtils.searchTracks(processed, searchQuery);
+    }
+
+    // Apply sorting
+    switch (sortBy) {
+      case 'name':
+        processed = MusicUtils.sortTracksByName(processed);
+        break;
+      case 'duration':
+        processed = MusicUtils.sortTracksByDuration(processed);
+        break;
+      case 'popularity':
+        processed = MusicUtils.sortTracksByPopularity(processed);
+        break;
+      case 'shuffle':
+        processed = shuffle(processed);
+        break;
+      default:
+        // Keep original order
+        break;
+    }
+
+    setFilteredTracks(processed);
+  }, [tracks, searchQuery, sortBy]);
+
   const playTrack = (track) => {
     // Add this track to the queue (don't clear existing queue)
     addTrackToQueue(track);
@@ -50,13 +92,40 @@ function Playlist() {
   };
 
   const playPlaylist = () => {
-    if (tracks.length === 0) return;
+    const tracksToPlay = filteredTracks.length > 0 ? filteredTracks : tracks;
+    if (tracksToPlay.length === 0) return;
     
     // Clear current queue and add entire playlist
     clearQueue();
-    tracks.forEach(track => addTrackToQueue(track));
+    tracksToPlay.forEach(track => addTrackToQueue(track));
     navigate('/playback');
     playTrackFromQueue(0);
+  };
+
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      
+      // Validate file size (max 256KB as per Spotify API)
+      if (file.size > 256 * 1024) {
+        alert('Image size must be less than 256KB');
+        return;
+      }
+      
+      setNewPlaylistImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const createPlaylist = async () => {
@@ -89,9 +158,47 @@ function Playlist() {
 
       if (response.ok) {
         const newPlaylist = await response.json();
-        alert(`Playlist "${newPlaylistName}" created successfully!`);
+        
+        // Upload image if provided
+        if (newPlaylistImage) {
+          try {
+            // Convert image to base64
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              const base64Image = reader.result.split(',')[1]; // Remove data:image/jpeg;base64, prefix
+              
+              const imageResponse = await fetch(
+                `https://api.spotify.com/v1/playlists/${newPlaylist.id}/images`,
+                {
+                  method: "PUT",
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "image/jpeg",
+                  },
+                  body: base64Image,
+                }
+              );
+              
+              if (imageResponse.ok) {
+                alert(`Playlist "${newPlaylistName}" created with custom image!`);
+              } else {
+                alert(`Playlist "${newPlaylistName}" created, but image upload failed.`);
+              }
+            };
+            reader.readAsDataURL(newPlaylistImage);
+          } catch (imageError) {
+            console.error("Error uploading image:", imageError);
+            alert(`Playlist "${newPlaylistName}" created, but image upload failed.`);
+          }
+        } else {
+          alert(`Playlist "${newPlaylistName}" created successfully!`);
+        }
+        
+        // Reset form
         setNewPlaylistName('');
         setNewPlaylistDescription('');
+        setNewPlaylistImage(null);
+        setImagePreview(null);
         setShowCreateForm(false);
       } else {
         alert('Failed to create playlist');
@@ -159,10 +266,122 @@ function Playlist() {
         <Sidebar />
         
         <div className="home-content">
-          <div style={{ maxWidth: '600px', margin: '0 auto', padding: '40px' }}>
+            <div style={{ maxWidth: '600px', margin: '0 auto', padding: '40px' }}>
             <h1 style={{ fontSize: '2.5rem', marginBottom: '30px', color: '#fff', textAlign: 'center' }}>
               Create New Playlist
             </h1>
+            
+            {/* Image Upload Section */}
+            <div style={{ marginBottom: '30px', textAlign: 'center' }}>
+              <label style={{ display: 'block', marginBottom: '12px', color: '#fff', fontWeight: 'bold' }}>
+                Playlist Cover Image (Optional)
+              </label>
+              
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                gap: '15px' 
+              }}>
+                {imagePreview ? (
+                  <div style={{ position: 'relative' }}>
+                    <img
+                      src={imagePreview}
+                      alt="Playlist cover preview"
+                      style={{
+                        width: '200px',
+                        height: '200px',
+                        objectFit: 'cover',
+                        borderRadius: '8px',
+                        border: '2px solid #282828'
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        setNewPlaylistImage(null);
+                        setImagePreview(null);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '-8px',
+                        right: '-8px',
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        backgroundColor: '#e22134',
+                        color: '#fff',
+                        border: 'none',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      width: '200px',
+                      height: '200px',
+                      border: '2px dashed #282828',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#181818',
+                      cursor: 'pointer',
+                      transition: 'border-color 0.2s'
+                    }}
+                    onClick={() => document.getElementById('imageUpload').click()}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = '#1DB954'}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = '#282828'}
+                  >
+                    <div style={{ fontSize: '48px', marginBottom: '10px' }}>📸</div>
+                    <p style={{ color: '#b3b3b3', fontSize: '0.9rem', textAlign: 'center' }}>
+                      Click to upload<br/>
+                      <span style={{ fontSize: '0.8rem' }}>(Max 256KB)</span>
+                    </p>
+                  </div>
+                )}
+                
+                <input
+                  id="imageUpload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  style={{ display: 'none' }}
+                />
+                
+                <button
+                  onClick={() => document.getElementById('imageUpload').click()}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: 'transparent',
+                    color: '#1DB954',
+                    border: '2px solid #1DB954',
+                    borderRadius: '20px',
+                    fontSize: '0.9rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1DB954';
+                    e.currentTarget.style.color = '#fff';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#1DB954';
+                  }}
+                >
+                  Choose Image
+                </button>
+              </div>
+            </div>
             
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#fff', fontWeight: 'bold' }}>
@@ -302,6 +521,12 @@ function Playlist() {
               </span>
               <span>•</span>
               <span>{tracks.length} songs</span>
+              {tracks.length > 0 && (
+                <>
+                  <span>•</span>
+                  <span>ID: {MusicUtils.generatePlaylistId(playlist.name, playlist.owner?.id || 'unknown')}</span>
+                </>
+              )}
             </div>
             
             <button
@@ -362,8 +587,109 @@ function Playlist() {
         {/* Track List */}
         {loading ? (
           <p style={{ color: '#b3b3b3' }}>Loading tracks...</p>
-        ) : (
+        ) : tracks.length > 0 ? (
           <div style={{ marginBottom: '40px' }}>
+            {/* Search and Sort Controls */}
+            <div style={{ 
+              display: 'flex', 
+              gap: '20px', 
+              alignItems: 'center', 
+              marginBottom: '20px',
+              padding: '20px',
+              backgroundColor: '#181818',
+              borderRadius: '8px',
+              border: '1px solid #282828'
+            }}>
+              <div style={{ flex: 1 }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Search tracks..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    backgroundColor: '#282828',
+                    border: '1px solid #404040',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    fontSize: '0.95rem',
+                  }}
+                />
+              </div>
+              
+              <div>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '8px', 
+                  color: '#b3b3b3', 
+                  fontSize: '0.9rem',
+                  fontWeight: 'bold'
+                }}>
+                  Sort by:
+                </label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  style={{
+                    padding: '10px 16px',
+                    backgroundColor: '#282828',
+                    border: '1px solid #404040',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    fontSize: '0.95rem',
+                    cursor: 'pointer',
+                    minWidth: '150px'
+                  }}
+                >
+                  <option value="default">Default Order</option>
+                  <option value="name">📝 Name (A-Z)</option>
+                  <option value="duration">⏱️ Duration</option>
+                  <option value="popularity">⭐ Popularity</option>
+                  <option value="shuffle">🔀 Shuffle</option>
+                </select>
+              </div>
+              
+              {(searchQuery || sortBy !== 'default') && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSortBy('default');
+                  }}
+                  style={{
+                    padding: '10px 16px',
+                    backgroundColor: '#e22134',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+            
+            {/* Results Summary */}
+            <div style={{ marginBottom: '15px' }}>
+              <p style={{ color: '#b3b3b3', fontSize: '0.9rem' }}>
+                Showing {filteredTracks.length > 0 ? filteredTracks.length : tracks.length} of {tracks.length} tracks
+                {searchQuery && (
+                  <span style={{ color: '#1DB954', fontWeight: 'bold' }}>
+                    {' '}• Search: "{searchQuery}"
+                  </span>
+                )}
+                {sortBy !== 'default' && (
+                  <span style={{ color: '#1DB954', fontWeight: 'bold' }}>
+                    {' '}• Sorted by: {sortBy}
+                  </span>
+                )}
+              </p>
+            </div>
+            
             <div style={{ 
               display: 'flex', 
               padding: '12px',
@@ -377,7 +703,7 @@ function Playlist() {
               <span style={{ width: '80px', textAlign: 'right' }}>DURATION</span>
             </div>
             
-            {tracks.map((track, index) => (
+            {(filteredTracks.length > 0 ? filteredTracks : tracks).map((track, index) => (
               <div
                 key={track.id}
                 onClick={() => playTrack(track)}
@@ -426,6 +752,11 @@ function Playlist() {
                 </span>
               </div>
             ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#b3b3b3' }}>
+            <h3>No tracks found</h3>
+            <p>This playlist is empty or no tracks match your search.</p>
           </div>
         )}
       </div>
