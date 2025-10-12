@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
 import "./App.css";
+import { resizeImageToJpegBase64 } from "./utils/image";
 
 function Playlist() {
   const location = useLocation();
@@ -15,6 +16,12 @@ function Playlist() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
+
+  // Cover image upload state/refs
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [isUploadingCreateCover, setIsUploadingCreateCover] = useState(false);
+  const headerFileInputRef = useRef(null);
+  const createFileInputRef = useRef(null);
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -59,6 +66,29 @@ function Playlist() {
     playTrackFromQueue(0);
   };
 
+  async function uploadPlaylistCover(playlistId, file, token, setUploading) {
+    if (!file) return false;
+    try {
+      setUploading(true);
+      const base64Image = await resizeImageToJpegBase64(file, 300, 0.9);
+      const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/images`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'image/jpeg',
+        },
+        // Spotify expects base64 JPEG string body with image/jpeg header
+        body: base64Image,
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Error uploading cover image:', e);
+      return false;
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const createPlaylist = async () => {
     const token = localStorage.getItem("spotify_access_token");
     if (!token || !newPlaylistName.trim()) return;
@@ -90,8 +120,17 @@ function Playlist() {
       if (response.ok) {
         const newPlaylist = await response.json();
         alert(`Playlist "${newPlaylistName}" created successfully!`);
+
+        // If user selected a cover already in the form, upload it
+        const selectedFile = createFileInputRef.current?.files?.[0];
+        if (selectedFile) {
+          const ok = await uploadPlaylistCover(newPlaylist.id, selectedFile, token, setIsUploadingCreateCover);
+          if (!ok) console.warn('Failed to upload playlist cover image');
+        }
+
         setNewPlaylistName('');
         setNewPlaylistDescription('');
+        if (createFileInputRef.current) createFileInputRef.current.value = '';
         setShowCreateForm(false);
       } else {
         alert('Failed to create playlist');
@@ -100,6 +139,20 @@ function Playlist() {
       console.error("Error creating playlist:", error);
       alert('Error creating playlist');
     }
+  };
+
+  const handleHeaderChangeCoverClick = () => {
+    headerFileInputRef.current?.click();
+  };
+
+  const handleHeaderCoverSelected = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const token = localStorage.getItem("spotify_access_token");
+    if (!token || !playlist?.id) return;
+    const ok = await uploadPlaylistCover(playlist.id, file, token, setIsUploadingCover);
+    if (!ok) alert('Failed to upload cover image');
+    if (headerFileInputRef.current) headerFileInputRef.current.value = '';
   };
 
   const formatDuration = (ms) => {
@@ -206,6 +259,30 @@ function Playlist() {
                 }}
               />
             </div>
+
+            {/* Optional cover image upload during creation */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#fff', fontWeight: 'bold' }}>
+                Cover Image (Optional)
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                ref={createFileInputRef}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: '#181818',
+                  border: '2px solid #282828',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '1rem',
+                }}
+              />
+              <p style={{ color: '#b3b3b3', fontSize: '0.85rem', marginTop: '8px' }}>
+                JPEG will be resized to 300×300 before upload.
+              </p>
+            </div>
             
             <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
               <button
@@ -223,7 +300,7 @@ function Playlist() {
                   transition: 'all 0.2s',
                 }}
               >
-                Create Playlist
+                {isUploadingCreateCover ? 'Creating…' : 'Create Playlist'}
               </button>
               
               <button
@@ -329,6 +406,45 @@ function Playlist() {
             >
               ▶️ Play Playlist
             </button>
+
+            {/* Change Cover Button */}
+            {playlist?.id && (
+              <>
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={headerFileInputRef}
+                  style={{ display: 'none' }}
+                  onChange={handleHeaderCoverSelected}
+                />
+                <button
+                  onClick={handleHeaderChangeCoverClick}
+                  disabled={isUploadingCover}
+                  style={{
+                    marginLeft: '12px',
+                    padding: '12px 24px',
+                    backgroundColor: 'transparent',
+                    color: '#b3b3b3',
+                    border: '2px solid #b3b3b3',
+                    borderRadius: '24px',
+                    fontSize: '1rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#fff';
+                    e.currentTarget.style.borderColor = '#fff';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#b3b3b3';
+                    e.currentTarget.style.borderColor = '#b3b3b3';
+                  }}
+                >
+                  {isUploadingCover ? 'Uploading…' : 'Change Cover'}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
