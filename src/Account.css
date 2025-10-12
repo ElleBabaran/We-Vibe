@@ -1,0 +1,297 @@
+/* Account Page */
+.account-container {
+  flex: 1;
+  margin-left: 236px;
+  min-height: 100vh;
+  background-color: #121212;
+  padding: 0;
+  overflow-y: auto;
+}
+
+/* ====================================================== */
+/* CHANGE #1: The max-width was removed from this rule.   */
+/* ====================================================== */
+.account-content {
+  /* max-width: 900px;  <-- THIS LINE WAS DELETED */
+  padding: 60px 80px;
+  background-color: #181818;
+  min-height: 100vh;
+}
+
+/* ====================================================== */
+/* CHANGE #2: This entire new rule was added.             */
+/* ====================================================== */
+.account-form-wrapper {
+  max-width: 900px; /* The original max-width is now here */
+  width: 100%;      /* Ensures it takes up full width until it hits the max */
+  margin: 0 auto;   /* This is what centers the content */
+}
+
+
+.account-title {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 50px;
+  letter-spacing: -0.5px;
+}
+
+/* Form Styles */
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 35px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.3px;
+}
+
+.form-value-display {
+  font-size: 1rem;
+  color: #fff;
+  padding: 14px 0;
+  background-color: transparent;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 14px 18px;
+  font-size: 1rem;
+  color: #fff;
+  background-color: #121212;
+  border: 1px solid #3e3e3e;
+  border-radius: 4px;
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
+.form-input:hover,
+.form-select:hover {
+  border-color: #5e5e5e;
+}
+
+.form-input:focus,
+.form-select:focus {
+  border-color: #fff;
+  background-color: #2a2a2a;
+}
+
+.form-input::placeholder {
+  color: #6a6a6a;
+}
+
+.form-select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23fff' d='M1.41 0L6 4.58 10.59 0 12 1.41l-6 6-6-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 18px center;
+  padding-right: 45px;
+}
+
+.form-select:invalid {
+  color: #5f6368; 
+}
+
+/* Date Inputs */
+.date-inputs {
+  display: flex;
+  gap: 15px;
+}
+
+.date-input {
+  padding: 14px 18px;
+  font-size: 1rem;
+  color: #fff;
+  background-color: #121212;
+  border: 1px solid #3e3e3e;
+  border-radius: 4px;
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
+.day-input {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.month-input {
+  flex: 1;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23fff' d='M1.41 0L6 4.58 10.59 0 12 1.41l-6 6-6-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 18px center;
+  padding-right: 45px;
+}
+.month-input:invalid {
+  color: #5f6368; 
+}
+
+.year-input {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.date-input:hover {
+  border-color: #5e5e5e;
+}
+
+.date-input:focus {
+  border-color: #fff;
+  background-color: #2a2a2a;
+}
+
+/* Checkbox */
+.checkbox-group {
+  margin-top: 10px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  color: #b3b3b3;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.form-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  cursor: pointer;
+  accent-color: #1db954;
+  flex-shrink: 0;
+}
+
+.checkbox-label span {
+  flex: 1;
+}
+
+/* Form Actions */
+.form-actions {
+  margin-top: 40px;
+  padding-top: 30px;
+  border-top: 1px solid #3e3e3e;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.save-button {
+  padding: 14px 48px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  background-color: #1db954;
+  border: none;
+  border-radius: 500px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.save-button:hover {
+  transform: scale(1.05);
+  background-color: #1ed760;
+}
+
+.save-button:active {
+  transform: scale(0.98);
+}
+
+/* Logout Section */
+.logout-section {
+  margin-top: 40px;
+  padding-top: 40px;
+  border-top: 1px solid #3e3e3e;
+}
+
+.logout-button {
+  padding: 14px 48px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #121212;
+  background-color: #fff;
+  border: none;
+  border-radius: 500px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.logout-button:hover {
+  transform: scale(1.05);
+  background-color: #f0f0f0;
+}
+
+.logout-button:active {
+  transform: scale(0.98);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .account-container {
+    margin-left: 200px;
+  }
+
+  .account-content {
+    padding: 40px 50px;
+  }
+
+  .account-title {
+    font-size: 2rem;
+  }
+
+  .date-inputs {
+    flex-direction: column;
+  }
+
+  .day-input,
+  .month-input,
+  .year-input {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .account-container {
+    margin-left: 0;
+  }
+
+  .account-content {
+    padding: 30px 20px;
+  }
+
+  .account-title {
+    font-size: 1.8rem;
+  }
+
+  .form-input,
+  .form-select,
+  .date-input {
+    padding: 12px 16px;
+    font-size: 0.95rem;
+  }
+
+  .save-button,
+  .logout-button {
+    width: 100%;
+  }
+}
