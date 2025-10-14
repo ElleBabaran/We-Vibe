@@ -11,6 +11,7 @@ function MiniPlayer() {
     setIsPlaying,
     playNext,
     playPrevious,
+    activeDeviceId,
   } = useMusicQueue();
 
   // Hide on the dedicated playback page
@@ -27,13 +28,13 @@ function MiniPlayer() {
     if (!token) return;
     try {
       if (isPlaying) {
-        const res = await fetch('https://api.spotify.com/v1/me/player/pause', {
+        const res = await fetch(`https://api.spotify.com/v1/me/player/pause${activeDeviceId ? `?device_id=${activeDeviceId}` : ''}` , {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) setIsPlaying(false);
       } else {
-        const res = await fetch('https://api.spotify.com/v1/me/player/play', {
+        const res = await fetch(`https://api.spotify.com/v1/me/player/play${activeDeviceId ? `?device_id=${activeDeviceId}` : ''}` , {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -47,7 +48,7 @@ function MiniPlayer() {
     if (!token) return;
     try {
       // Try SDK endpoint first via Web API
-      const res = await fetch('https://api.spotify.com/v1/me/player/next', {
+      const res = await fetch(`https://api.spotify.com/v1/me/player/next${activeDeviceId ? `?device_id=${activeDeviceId}` : ''}` , {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -64,7 +65,7 @@ function MiniPlayer() {
     const token = localStorage.getItem('spotify_access_token');
     if (!token) return;
     try {
-      const res = await fetch('https://api.spotify.com/v1/me/player/previous', {
+      const res = await fetch(`https://api.spotify.com/v1/me/player/previous${activeDeviceId ? `?device_id=${activeDeviceId}` : ''}` , {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
