@@ -19,8 +19,7 @@ export default function Sidebar() {
         <li><Link to="/recents">Recents</Link></li>
         <li><Link to="mdf">Made for you</Link></li>
         <li><Link to="artist">Artists</Link></li>
-        <h2>Tools</h2>
-        <li><Link to="/algorithms">🧮 Algorithms Demo</Link></li>
+       
       </ul>
       </div>
       <p className='Acc'><Link to="/acc">My Account</Link></p>

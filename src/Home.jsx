@@ -11,6 +11,7 @@ function Home() {
   const [albums, setAlbums] = useState([]);
   const [newReleases, setNewReleases] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userPlaylists, setUserPlaylists] = useState([]);
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -61,6 +62,14 @@ function Home() {
       );
       const newReleasesData = await newReleasesRes.json();
       setNewReleases(newReleasesData.albums?.items || []);
+
+      // Fetch User Playlists
+      const playlistsRes = await fetch(
+        "https://api.spotify.com/v1/me/playlists?limit=20",
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const playlistsData = await playlistsRes.json();
+      setUserPlaylists(playlistsData.items || []);
       
     } catch (err) {
       console.error("Error fetching discover picks:", err);
@@ -69,15 +78,18 @@ function Home() {
     }
   };
 
-  const playTrack = (track) => {
+  const playTrack = async (track) => {
     // Add this track to the queue (don't clear existing queue)
     addTrackToQueue(track);
-    navigate('/playback');
-    playTrackFromQueue(queue.length); // Play the newly added track
+    navigate('/playback', { state: { track } });
   };
 
   const viewAlbum = (album) => {
     navigate('/album', { state: { album } });
+  };
+
+  const viewPlaylist = (playlist) => {
+    navigate('/playlist', { state: { playlist } });
   };
 
   const formatDuration = (ms) => {
@@ -139,10 +151,19 @@ function Home() {
                         padding: '15px',
                         borderRadius: '8px',
                         cursor: 'pointer',
-                        transition: 'background-color 0.2s',
+                        transition: 'all 0.3s ease',
+                        transform: 'scale(1)',
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#282828'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#181818'}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#282828';
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                        e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.3)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#181818';
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
                     >
                       {album.images?.[0]?.url && (
                         <img
@@ -204,10 +225,19 @@ function Home() {
                         padding: '15px',
                         borderRadius: '8px',
                         cursor: 'pointer',
-                        transition: 'background-color 0.2s',
+                        transition: 'all 0.3s ease',
+                        transform: 'scale(1)',
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#282828'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#181818'}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#282828';
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                        e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.3)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#181818';
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
                       onClick={() => viewAlbum(album)}
                     >
                       {album.images?.[0]?.url && (
@@ -247,6 +277,96 @@ function Home() {
                 </div>
               )}
             </div>
+
+            {/* Your Playlists */}
+            {userPlaylists.length > 0 && (
+              <div style={{ marginBottom: '40px' }}>
+                <h2 style={{ fontSize: '1.8rem', marginBottom: '20px', color: '#fff' }}>
+                  🎵 Your Playlists
+                </h2>
+                
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+                  gap: '20px' 
+                }}>
+                  {userPlaylists.slice(0, 12).map((playlist) => (
+                    <div
+                      key={playlist.id}
+                      onClick={() => viewPlaylist(playlist)}
+                      style={{
+                        backgroundColor: '#181818',
+                        padding: '15px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        transform: 'scale(1)',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#282828';
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                        e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.3)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#181818';
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      {playlist.images?.[0]?.url ? (
+                        <img
+                          src={playlist.images[0].url}
+                          alt={playlist.name}
+                          style={{
+                            width: '100%',
+                            height: '130px',
+                            objectFit: 'cover',
+                            borderRadius: '4px',
+                            marginBottom: '10px',
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '100%',
+                            height: '130px',
+                            backgroundColor: '#333',
+                            borderRadius: '4px',
+                            marginBottom: '10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '2rem',
+                            color: '#666',
+                          }}
+                        >
+                          🎵
+                        </div>
+                      )}
+                      <p style={{ 
+                        fontWeight: 'bold', 
+                        marginBottom: '5px', 
+                        fontSize: '0.9rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {playlist.name}
+                      </p>
+                      <p style={{ 
+                        color: '#b3b3b3', 
+                        fontSize: '0.8rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {playlist.tracks?.total || 0} songs
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

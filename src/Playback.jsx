@@ -24,8 +24,6 @@ function Playback() {
   const [deviceId, setDeviceId] = useState(null);
   const [currentTrack, setCurrentTrack] = useState(null);
   const [fallbackTracks, setFallbackTracks] = useState([]);
-  const [positionMs, setPositionMs] = useState(0);
-  const [durationMs, setDurationMs] = useState(0);
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -71,12 +69,6 @@ function Playback() {
         player.addListener("player_state_changed", (state) => {
           if (!state) return;
           setIsPlaying(!state.paused);
-          if (typeof state.position === "number") {
-            setPositionMs(state.position);
-          }
-          if (typeof state.duration === "number") {
-            setDurationMs(state.duration);
-          }
         });
 
         player.connect();
@@ -124,25 +116,6 @@ function Playback() {
     const track = getCurrentTrack();
     setCurrentTrack(track);
   }, [getCurrentTrack, currentTrackIndex]);
-
-  // Poll player state for smooth progress updates
-  useEffect(() => {
-    if (!player) return;
-    const interval = setInterval(async () => {
-      try {
-        const state = await player.getCurrentState();
-        if (state) {
-          setIsPlaying(!state.paused);
-          setPositionMs(state.position || 0);
-          setDurationMs(state.duration || 0);
-        }
-      } catch (err) {
-        // no-op
-      }
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, [player, setIsPlaying]);
 
   // Function to start playback on our player device
   const startPlayback = async (trackToPlay = currentTrack) => {
@@ -200,20 +173,6 @@ function Playback() {
   const togglePlayPause = () => {
     if (player) {
       player.togglePlay();
-    }
-  };
-
-  const handleSeek = async (e) => {
-    if (!player || !durationMs) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const ratio = Math.min(Math.max(clickX / rect.width, 0), 1);
-    const newPosition = Math.floor(ratio * durationMs);
-    try {
-      await player.seek(newPosition);
-      setPositionMs(newPosition);
-    } catch (error) {
-      console.error("Seek error:", error);
     }
   };
 
@@ -281,8 +240,6 @@ function Playback() {
       </div>
     );
   }
-
-  const progressPercent = durationMs ? Math.min(100, (positionMs / durationMs) * 100) : 0;
 
   return (
     <div className="home-container">
@@ -381,38 +338,30 @@ function Playback() {
 
             {/* Progress Bar */}
             <div style={{ marginTop: "20px", marginBottom: "20px" }}>
-              <div
-                onClick={handleSeek}
-                style={{
-                  width: "100%",
-                  height: "4px",
-                  backgroundColor: "#e0e0e0",
+              <div style={{
+                width: "100%",
+                height: "4px",
+                backgroundColor: "#e0e0e0",
+                borderRadius: "2px",
+                overflow: "hidden"
+              }}>
+                <div style={{
+                  width: "30%", // This would be dynamic based on actual progress
+                  height: "100%",
+                  backgroundColor: "#1DB954",
                   borderRadius: "2px",
-                  overflow: "hidden",
-                  cursor: durationMs ? "pointer" : "default",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${progressPercent}%`,
-                    height: "100%",
-                    backgroundColor: "#1DB954",
-                    borderRadius: "2px",
-                    transition: "width 0.3s linear",
-                  }}
-                />
+                  transition: "width 0.3s ease"
+                }}></div>
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginTop: "8px",
-                  fontSize: "0.8rem",
-                  color: "#666",
-                }}
-              >
-                <span>{formatDuration(positionMs)}</span>
-                <span>{formatDuration(durationMs)}</span>
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: "8px",
+                fontSize: "0.8rem",
+                color: "#666"
+              }}>
+                <span>1:23</span>
+                <span>4:56</span>
               </div>
             </div>
 

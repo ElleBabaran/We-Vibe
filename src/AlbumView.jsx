@@ -51,8 +51,7 @@ function AlbumView() {
     addTrackToQueue(trackWithAlbum);
     
     // Navigate to playback and start playing the selected track
-    navigate('/playback');
-    playTrackFromQueue(queue.length); // Play the newly added track
+    navigate('/playback', { state: { track: trackWithAlbum } });
   };
 
   const playAlbum = () => {
