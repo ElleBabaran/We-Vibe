@@ -21,11 +21,14 @@ function Playback() {
     playTrackFromQueue,
     clearAndPlayTrack,
     activeDeviceId,
-    setActiveDeviceId
+    setActiveDeviceId,
+    setCurrentTrackIndexDirect,
+    player,
+    deviceId,
+    startPlayback
   } = useMusicQueue();
 
-  const [player, setPlayer] = useState(null);
-  const [deviceId, setDeviceId] = useState(null);
+  // player and deviceId are sourced from context now
   const [currentTrack, setCurrentTrack] = useState(null);
   const [fallbackTracks, setFallbackTracks] = useState([]);
   const [positionMs, setPositionMs] = useState(0);
@@ -42,121 +45,8 @@ function Playback() {
       navigate("/");
       return;
     }
-
-    // Initialize Spotify Web Playback SDK
-    const loadPlayer = () => {
-      if (window.Spotify) {
-        const player = new window.Spotify.Player({
-          name: "WeVibe Player",
-          getOAuthToken: cb => cb(token),
-          volume: 0.7,
-        });
-
-        // Listeners
-        player.addListener("ready", async ({ device_id }) => {
-          console.log("Spotify Player ready with Device ID:", device_id);
-          setDeviceId(device_id);
-          setActiveDeviceId(device_id);
-          try {
-            localStorage.setItem("wv_device_id", device_id);
-          } catch (_) {}
-          setPlayer(player);
-
-          // Attempt to transfer playback to this Web Playback SDK device
-          try {
-            const res = await fetch("https://api.spotify.com/v1/me/player", {
-              method: "PUT",
-              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ device_ids: [device_id], play: false })
-            });
-            if (!res.ok) {
-              const text = await res.text();
-              console.warn("Failed to transfer playback to SDK device:", res.status, text);
-            }
-          } catch (e) {
-            console.warn("Transfer playback request failed", e);
-          }
-        });
-
-        player.addListener("not_ready", ({ device_id }) => {
-          console.warn("Device ID has gone offline", device_id);
-          if (deviceId === device_id) {
-            setDeviceId(null);
-            setActiveDeviceId(null);
-            try { localStorage.removeItem("wv_device_id"); } catch (_) {}
-          }
-        });
-
-        player.addListener("initialization_error", ({ message }) => {
-          console.error("Initialization error:", message);
-        });
-        player.addListener("authentication_error", ({ message }) => {
-          console.error("Authentication error:", message);
-        });
-        player.addListener("account_error", ({ message }) => {
-          console.error("Account error:", message);
-        });
-        player.addListener("playback_error", ({ message }) => {
-          console.error("Playback error:", message);
-        });
-
-        // Listen for track changes
-        player.addListener("player_state_changed", (state) => {
-          if (!state) return;
-          
-          const currentlyPlaying = !state.paused;
-          console.log('🎵 Player state changed:', { 
-            paused: state.paused, 
-            trackName: state.track_window?.current_track?.name 
-          });
-          
-          // Only update isPlaying if it's different to avoid loops
-          setIsPlaying(prev => {
-            if (prev !== currentlyPlaying) {
-              console.log('🎵 Updating isPlaying from', prev, 'to', currentlyPlaying);
-              return currentlyPlaying;
-            }
-            return prev;
-          });
-          
-          if (typeof state.position === "number") setPositionMs(state.position);
-          if (typeof state.duration === "number") setDurationMs(state.duration);
-        });
-
-        player.connect();
-      } else {
-        console.log("Spotify SDK not loaded, waiting...");
-        window.onSpotifyWebPlaybackSDKReady = loadPlayer;
-      }
-    };
-
-    // Wait for Spotify SDK to load
-    if (window.Spotify) {
-      loadPlayer();
-    } else {
-      // Retry after a short delay
-      const timer = setTimeout(() => {
-        if (window.Spotify) {
-    loadPlayer();
-        } else {
-          console.error("Spotify SDK failed to load");
-        }
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-    
     // Fetch fallback tracks when no queue exists
     fetchFallbackTracks(token);
-    
-    // Try to restore previous device id (in case SDK was already ready)
-    try {
-      const savedId = localStorage.getItem("wv_device_id");
-      if (savedId) {
-        setDeviceId(savedId);
-        setActiveDeviceId(savedId);
-      }
-    } catch (_) {}
   }, [navigate]);
 
   const fetchFallbackTracks = async (token) => {
@@ -219,9 +109,9 @@ function Playback() {
       try {
         const state = await player.getCurrentState();
         if (!state) return;
-          setIsPlaying(!state.paused);
-          setPositionMs(state.position || 0);
-          setDurationMs(state.duration || 0);
+        setIsPlaying(!state.paused);
+        setPositionMs(state.position || 0);
+        setDurationMs(state.duration || 0);
       } catch (_) {
         // no-op
       }
@@ -229,123 +119,7 @@ function Playback() {
     return () => clearInterval(interval);
   }, [player, setIsPlaying]);
 
-  // Function to start playback on our player device
-  const startPlayback = async (trackToPlay = currentTrack) => {
-    const token = localStorage.getItem("spotify_access_token");
-    console.log('🎵 startPlayback called with:', {
-      trackName: trackToPlay?.name,
-      trackUri: trackToPlay?.uri,
-      deviceId: !!deviceId,
-      hasToken: !!token
-    });
-    
-    if (!deviceId || !trackToPlay?.uri) {
-      console.log("❌ Missing deviceId or track URI:", { deviceId, trackUri: trackToPlay?.uri });
-      return;
-    }
-
-    try {
-      // Ensure audio element is activated in the browser context
-      try {
-        if (player?.activateElement) {
-          await player.activateElement();
-        }
-      } catch (_) {}
-
-      console.log("🎵 Starting playback for track:", trackToPlay.name);
-      
-      // First, ensure any current playback is stopped
-      try {
-        await fetch(`https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`, {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        // Wait a moment for the pause to take effect
-        await new Promise(resolve => setTimeout(resolve, 300));
-      } catch (e) {
-        console.warn('Failed to pause current playback:', e);
-      }
-      // increment play count
-      try {
-        const countsRaw = localStorage.getItem("wv_play_counts");
-        const counts = countsRaw ? JSON.parse(countsRaw) : {};
-        const key = trackToPlay.id || trackToPlay.uri;
-        counts[key] = (counts[key] || 0) + 1;
-        localStorage.setItem("wv_play_counts", JSON.stringify(counts));
-      } catch (_) {}
-      
-      // Ensure SDK device is active before trying to play
-      try {
-        await fetch("https://api.spotify.com/v1/me/player", {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ device_ids: [deviceId], play: false })
-        });
-      } catch (e) {
-        console.warn("Device transfer before play failed", e);
-      }
-
-      // If we have a queue, play from the current track
-      if (queue.length > 0) {
-        const currentIndex = currentTrackIndex;
-        // Spotify API has practical limits; avoid sending very large payloads
-        const MAX_URIS = 100;
-        const uris = queue
-          .slice(currentIndex, currentIndex + MAX_URIS)
-          .map(t => t.uri)
-          .filter(Boolean);
-        console.log("Starting queue playback with up to", uris.length, "URIs");
-
-        let response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-          method: "PUT",
-          body: JSON.stringify({ uris }),
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        // Fallback to single-track start if the bulk request fails
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.warn("Bulk play failed, falling back to single track:", response.status, errorText);
-          response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-            method: "PUT",
-            body: JSON.stringify({ uris: [trackToPlay.uri] }),
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          });
-          if (!response.ok) {
-            const text2 = await response.text();
-            console.error("Single-track fallback failed:", response.status, text2);
-          }
-        }
-      } else {
-      // Play single track
-      console.log("Playing single track:", trackToPlay.uri);
-        const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-        method: "PUT",
-        body: JSON.stringify({ uris: [trackToPlay.uri] }),
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error("Playback API error:", response.status, errorData);
-        }
-      }
-
-      // Give the SDK a brief moment for state to propagate
-      await sleep(300);
-    } catch (error) {
-      console.error("Error starting playback:", error);
-    }
-  };
+  // startPlayback now provided by context
 
   const togglePlayPause = async () => {
     if (!player) return;

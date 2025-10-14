@@ -9,7 +9,7 @@ function Playlist() {
   const location = useLocation();
   const navigate = useNavigate();
   const playlist = location.state?.playlist;
-  const { addTrackToQueue, clearQueue, playTrackFromQueue, clearAndPlayTrack, clearAndPlayPlaylist, queue } = useMusicQueue();
+  const { addTrackToQueue, clearQueue, playTrackFromQueue, clearAndPlayTrack, clearAndPlayPlaylist, queue, startPlayback } = useMusicQueue();
   const [visitedPlaylists, setVisitedPlaylists] = useState([]);
   
   const [tracks, setTracks] = useState([]);
@@ -104,8 +104,11 @@ function Playlist() {
   const playTrack = (track) => {
     if (!track) return;
     
-    // Clear queue and play this track atomically
+  // Clear queue and play this track atomically
     clearAndPlayTrack(track);
+    // Attempt immediate start within this user gesture, plus a delayed retry
+    startPlayback(track);
+    setTimeout(() => startPlayback(track), 250);
     
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {
@@ -116,8 +119,12 @@ function Playlist() {
   const playPlaylist = () => {
     if (tracks.length === 0) return;
     
-    // Clear queue and play entire playlist atomically
+  // Clear queue and play entire playlist atomically
     clearAndPlayPlaylist(tracks, 0);
+    if (tracks[0]) {
+      startPlayback(tracks[0]);
+      setTimeout(() => startPlayback(tracks[0]), 300);
+    }
     
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {

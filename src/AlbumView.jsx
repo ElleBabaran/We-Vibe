@@ -8,7 +8,7 @@ function AlbumView() {
   const location = useLocation();
   const navigate = useNavigate();
   const album = location.state?.album;
-  const { addAlbumToQueue, clearQueue, playTrackFromQueue, addTrackToQueue, clearAndPlayTrack, clearAndPlayPlaylist, queue } = useMusicQueue();
+  const { addAlbumToQueue, clearQueue, playTrackFromQueue, addTrackToQueue, clearAndPlayTrack, clearAndPlayPlaylist, queue, startPlayback } = useMusicQueue();
   
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,8 +46,11 @@ function AlbumView() {
     // Ensure the queued item contains album metadata for artwork
     const trackWithAlbum = { ...track, album };
 
-    // Clear queue and play this track atomically
-    clearAndPlayTrack(trackWithAlbum);
+  // Clear queue and play this track atomically
+  clearAndPlayTrack(trackWithAlbum);
+  // Attempt immediate start within this user gesture, plus a delayed retry
+  startPlayback(trackWithAlbum);
+  setTimeout(() => startPlayback(trackWithAlbum), 250);
     
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {
@@ -62,8 +65,12 @@ function AlbumView() {
       album: album,
     }));
     
-    // Clear queue and play entire album atomically
-    clearAndPlayPlaylist(tracksWithAlbum, 0);
+  // Clear queue and play entire album atomically
+  clearAndPlayPlaylist(tracksWithAlbum, 0);
+  if (tracksWithAlbum[0]) {
+    startPlayback(tracksWithAlbum[0]);
+    setTimeout(() => startPlayback(tracksWithAlbum[0]), 300);
+  }
     
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 
 const MusicQueueContext = createContext();
 
@@ -16,6 +16,14 @@ export const MusicQueueProvider = ({ children }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   // Active Spotify Web Playback SDK device id shared app-wide
   const [activeDeviceId, setActiveDeviceId] = useState(null);
+  // Spotify Web Playback SDK player instance and device id
+  const [player, setPlayer] = useState(null);
+  const [deviceId, setDeviceId] = useState(null);
+  const queueRef = useRef(queue);
+  const indexRef = useRef(currentTrackIndex);
+
+  useEffect(() => { queueRef.current = queue; }, [queue]);
+  useEffect(() => { indexRef.current = currentTrackIndex; }, [currentTrackIndex]);
 
   // Restore persisted device id if available so controls work before Playback loads
   useEffect(() => {
@@ -24,6 +32,145 @@ export const MusicQueueProvider = ({ children }) => {
       if (savedId) setActiveDeviceId(savedId);
     } catch (_) {}
   }, []);
+
+  // Initialize Spotify Web Playback SDK globally so playback works on all pages
+  useEffect(() => {
+    const token = localStorage.getItem('spotify_access_token');
+    if (!token) return;
+
+    const setup = () => {
+      if (!window.Spotify || player) return;
+      const p = new window.Spotify.Player({
+        name: 'WeVibe Player',
+        getOAuthToken: cb => cb(token),
+        volume: 0.7,
+      });
+
+      p.addListener('ready', async ({ device_id }) => {
+        setDeviceId(device_id);
+        setActiveDeviceId(device_id);
+        try { localStorage.setItem('wv_device_id', device_id); } catch (_) {}
+        setPlayer(p);
+        try {
+          // Transfer playback context to this device but don't autoplay
+          await fetch('https://api.spotify.com/v1/me/player', {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ device_ids: [device_id], play: false })
+          });
+        } catch (_) {}
+      });
+
+      p.addListener('not_ready', ({ device_id }) => {
+        setDeviceId(null);
+        setActiveDeviceId(null);
+        try { localStorage.removeItem('wv_device_id'); } catch (_) {}
+      });
+
+      p.addListener('initialization_error', ({ message }) => console.error('SDK init error', message));
+      p.addListener('authentication_error', ({ message }) => console.error('SDK auth error', message));
+      p.addListener('account_error', ({ message }) => console.error('SDK account error', message));
+      p.addListener('playback_error', ({ message }) => console.error('SDK playback error', message));
+
+      // Keep isPlaying and currentTrackIndex aligned with SDK
+      p.addListener('player_state_changed', (state) => {
+        if (!state) return;
+        const currentlyPlaying = !state.paused;
+        setIsPlaying(prev => (prev !== currentlyPlaying ? currentlyPlaying : prev));
+
+        try {
+          const sdkUri = state.track_window?.current_track?.uri;
+          const q = queueRef.current || [];
+          const currentIdx = indexRef.current || 0;
+          if (sdkUri && q.length > 0) {
+            const idx = q.findIndex(t => t?.uri === sdkUri);
+            if (idx >= 0 && idx !== currentIdx) {
+              setCurrentTrackIndex(idx);
+            }
+          }
+        } catch (_) {}
+      });
+
+      p.connect();
+    };
+
+    if (window.Spotify) {
+      setup();
+    } else {
+      window.onSpotifyWebPlaybackSDKReady = setup;
+    }
+  }, [player, deviceId, queue, currentTrackIndex]);
+
+  // Start playback on this device when we have a track and play is requested
+  const startPlayback = useCallback(async (trackToPlayArg) => {
+    const trackToPlay = trackToPlayArg ?? (queue[currentTrackIndex] || null);
+    const token = localStorage.getItem('spotify_access_token');
+    if (!token || !deviceId || !player || !trackToPlay?.uri) return;
+
+    try {
+      // Activate audio in browser if required
+      try { if (player.activateElement) await player.activateElement(); } catch (_) {}
+
+      // Pause to reset current playback
+      try {
+        await fetch(`https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`, {
+          method: 'PUT', headers: { Authorization: `Bearer ${token}` }
+        });
+        await new Promise(r => setTimeout(r, 250));
+      } catch (_) {}
+
+      // Ensure device is active
+      try {
+        await fetch('https://api.spotify.com/v1/me/player', {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_ids: [deviceId], play: false })
+        });
+      } catch (_) {}
+
+      if (queue.length > 0) {
+        const MAX_URIS = 100;
+        const uris = queue
+          .slice(currentTrackIndex, currentTrackIndex + MAX_URIS)
+          .map(t => t?.uri)
+          .filter(Boolean);
+        let res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uris })
+        });
+        if (!res.ok) {
+          // fallback to single
+          await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uris: [trackToPlay.uri] })
+          });
+        }
+      } else {
+        await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uris: [trackToPlay.uri] })
+        });
+      }
+    } catch (e) {
+      // Log and allow UI to continue
+      console.error('startPlayback failed', e);
+    }
+  }, [queue, currentTrackIndex, deviceId, player]);
+
+  // Auto-start/pause based on state
+  useEffect(() => {
+    const track = queue[currentTrackIndex] || null;
+    if (deviceId && track && isPlaying && player && track.uri) {
+      // debounce to let state settle
+      const t = setTimeout(() => startPlayback(track), 150);
+      return () => clearTimeout(t);
+    } else if (deviceId && track && !isPlaying && player) {
+      player.pause?.().catch(() => {});
+    }
+  }, [queue, currentTrackIndex, isPlaying, deviceId, player, startPlayback]);
 
   // Ensure track has a valid Spotify URI; fallback to id if present
   const ensureTrackUri = (track) => {
@@ -92,6 +239,7 @@ export const MusicQueueProvider = ({ children }) => {
   const playNext = useCallback(() => {
     if (currentTrackIndex < queue.length - 1) {
       setCurrentTrackIndex(prev => prev + 1);
+      setIsPlaying(true);
     }
   }, [currentTrackIndex, queue.length]);
 
@@ -99,6 +247,7 @@ export const MusicQueueProvider = ({ children }) => {
   const playPrevious = useCallback(() => {
     if (currentTrackIndex > 0) {
       setCurrentTrackIndex(prev => prev - 1);
+      setIsPlaying(true);
     }
   }, [currentTrackIndex]);
 
@@ -131,6 +280,12 @@ export const MusicQueueProvider = ({ children }) => {
       return newQueue;
     });
   }, [currentTrackIndex]);
+
+  // Set current track index without toggling playback state (for SDK sync)
+  const setCurrentTrackIndexDirect = useCallback((index) => {
+    if (typeof index !== 'number') return;
+    setCurrentTrackIndex(index);
+  }, []);
 
   // Clear queue and play a single track atomically
   const clearAndPlayTrack = useCallback((track) => {
@@ -181,6 +336,11 @@ export const MusicQueueProvider = ({ children }) => {
     setIsPlaying,
     activeDeviceId,
     setActiveDeviceId,
+    setCurrentTrackIndexDirect,
+    // Expose SDK/device and controls app-wide
+    player,
+    deviceId,
+    startPlayback,
     addTrackToQueue,
     addTracksToQueue,
     addAlbumToQueue,

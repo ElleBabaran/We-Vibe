@@ -6,7 +6,7 @@ import "./App.css";
 
 function Home() {
   const navigate = useNavigate();
-  const { addTrackToQueue, clearQueue, playTrackFromQueue, clearAndPlayTrack, clearAndPlayPlaylist, queue } = useMusicQueue();
+  const { addTrackToQueue, clearQueue, playTrackFromQueue, clearAndPlayTrack, clearAndPlayPlaylist, queue, startPlayback } = useMusicQueue();
   const [profile, setProfile] = useState(null);
   const [albums, setAlbums] = useState([]);
   const [newReleases, setNewReleases] = useState([]);
@@ -83,6 +83,9 @@ function Home() {
     
     // Clear queue and play this track atomically
     clearAndPlayTrack(track);
+    // Attempt immediate start within this user gesture, plus a delayed retry
+    startPlayback(track);
+    setTimeout(() => startPlayback(track), 250);
     
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {
@@ -123,6 +126,10 @@ function Home() {
           
           // Play the album
           clearAndPlayPlaylist(tracksWithAlbum, 0);
+          if (tracksWithAlbum[0]) {
+            startPlayback(tracksWithAlbum[0]);
+            setTimeout(() => startPlayback(tracksWithAlbum[0]), 300);
+          }
           
           // Navigate to playback page if not already there
           if (window.location.pathname !== '/playback') {

@@ -8,7 +8,7 @@ import { getPlaylists, addTrackToPlaylist } from './localPlaylists';
 
 export default function Browse() {
   const navigate = useNavigate();
-  const { addTrackToQueue, playTrackFromQueue, clearQueue, clearAndPlayTrack, queue } = useMusicQueue();
+  const { addTrackToQueue, playTrackFromQueue, clearQueue, clearAndPlayTrack, queue, startPlayback } = useMusicQueue();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -83,8 +83,11 @@ export default function Browse() {
     
     console.log('🎵 Browse: playTrack called with:', track.name, track.uri);
     
-    // Clear queue and play this track atomically
+  // Clear queue and play this track atomically
     clearAndPlayTrack(track);
+    // Attempt immediate start within this user gesture, plus a delayed retry
+    startPlayback(track);
+    setTimeout(() => startPlayback(track), 250);
     
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {
