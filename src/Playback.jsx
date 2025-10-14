@@ -192,7 +192,6 @@ function Playback() {
     
     if (deviceId && currentTrack && isPlaying && player && currentTrack.uri) {
       console.log('▶️ Starting playback:', currentTrack.name);
-
       const maybeStart = async () => {
         try {
           const state = await player.getCurrentState?.();
@@ -209,25 +208,22 @@ function Playback() {
         }
       };
 
-      const t = setTimeout(() => { maybeStart(); }, 200);
-      return () => clearTimeout(t);
-    } else if (deviceId && currentTrack && !isPlaying && player) {
-      // If isPlaying is false, pause the player
-      console.log('⏸️ Pausing playback');
-      player.pause?.().catch(err => console.warn('Pause failed:', err));
+      // Start immediately to avoid races with polling flipping isPlaying
+      void maybeStart();
     }
   }, [currentTrack, isPlaying, deviceId, player]);
 
-  // Smooth progress polling
+  // Smooth progress polling (avoid thrashing isPlaying)
   useEffect(() => {
     if (!player) return;
     const interval = setInterval(async () => {
       try {
         const state = await player.getCurrentState();
         if (!state) return;
-          setIsPlaying(!state.paused);
-          setPositionMs(state.position || 0);
-          setDurationMs(state.duration || 0);
+        const playing = !state.paused;
+        setIsPlaying(prev => (prev !== playing ? playing : prev));
+        setPositionMs(state.position || 0);
+        setDurationMs(state.duration || 0);
       } catch (_) {
         // no-op
       }
