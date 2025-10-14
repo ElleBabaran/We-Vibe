@@ -21,10 +21,15 @@ export function getPlaylists() {
   return loadAll();
 }
 
-export function createPlaylist(name) {
+export function createPlaylist(name, coverImage = null) {
   const playlists = loadAll();
   const id = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const playlist = { id, name: name || 'New Playlist', tracks: [] };
+  const playlist = { 
+    id, 
+    name: name || 'New Playlist', 
+    tracks: [],
+    images: coverImage ? [{ url: coverImage }] : []
+  };
   saveAll([playlist, ...playlists]);
   return playlist;
 }
@@ -66,6 +71,14 @@ export function removeTrack(playlistId, trackIndex) {
 
 export function getPlaylist(playlistId) {
   return loadAll().find(p => p.id === playlistId);
+}
+
+export function updatePlaylistCover(playlistId, coverImage) {
+  const playlists = loadAll();
+  const idx = playlists.findIndex(p => p.id === playlistId);
+  if (idx === -1) return;
+  playlists[idx].images = coverImage ? [{ url: coverImage }] : [];
+  saveAll(playlists);
 }
 
 
