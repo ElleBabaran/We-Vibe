@@ -75,4 +75,14 @@ export function getPlaylist(playlistId) {
   return loadAll().find(p => p.id === playlistId);
 }
 
+export function updatePlaylist(playlistId, updates) {
+  const playlists = loadAll();
+  const idx = playlists.findIndex(p => p.id === playlistId);
+  if (idx === -1) return null;
+  
+  playlists[idx] = { ...playlists[idx], ...updates };
+  saveAll(playlists);
+  return playlists[idx];
+}
+
 
