@@ -6,6 +6,8 @@ function MiniPlayer() {
   const location = useLocation();
   const navigate = useNavigate();
   const {
+    queue,
+    currentTrackIndex,
     getCurrentTrack,
     isPlaying,
     setIsPlaying,
@@ -20,20 +22,21 @@ function MiniPlayer() {
 
   useEffect(() => {
     setCurrentTrack(getCurrentTrack());
-  }, [getCurrentTrack]);
+  }, [getCurrentTrack, queue, currentTrackIndex, isPlaying]);
 
   const togglePlayPause = async () => {
     const token = localStorage.getItem('spotify_access_token');
     if (!token) return;
+    const deviceId = localStorage.getItem('spotify_device_id');
     try {
       if (isPlaying) {
-        const res = await fetch('https://api.spotify.com/v1/me/player/pause', {
+        const res = await fetch(`https://api.spotify.com/v1/me/player/pause${deviceId ? `?device_id=${deviceId}` : ''}` , {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) setIsPlaying(false);
       } else {
-        const res = await fetch('https://api.spotify.com/v1/me/player/play', {
+        const res = await fetch(`https://api.spotify.com/v1/me/player/play${deviceId ? `?device_id=${deviceId}` : ''}`, {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -45,9 +48,10 @@ function MiniPlayer() {
   const next = async () => {
     const token = localStorage.getItem('spotify_access_token');
     if (!token) return;
+    const deviceId = localStorage.getItem('spotify_device_id');
     try {
       // Try SDK endpoint first via Web API
-      const res = await fetch('https://api.spotify.com/v1/me/player/next', {
+      const res = await fetch(`https://api.spotify.com/v1/me/player/next${deviceId ? `?device_id=${deviceId}` : ''}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -63,8 +67,9 @@ function MiniPlayer() {
   const prev = async () => {
     const token = localStorage.getItem('spotify_access_token');
     if (!token) return;
+    const deviceId = localStorage.getItem('spotify_device_id');
     try {
-      const res = await fetch('https://api.spotify.com/v1/me/player/previous', {
+      const res = await fetch(`https://api.spotify.com/v1/me/player/previous${deviceId ? `?device_id=${deviceId}` : ''}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
