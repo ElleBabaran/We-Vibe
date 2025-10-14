@@ -118,6 +118,11 @@ export default function MadeForYou() {
     return data.items ?? [];
   }
 
+  async function getUserTopArtists(max = 20) {
+    const data = await fetchJson(`https://api.spotify.com/v1/me/top/artists?limit=${max}`);
+    return data.items ?? [];
+  }
+
   async function getUserSavedTracks(max = 20) {
     const data = await fetchJson(`https://api.spotify.com/v1/me/tracks?limit=${max}`);
     // items[].track
@@ -133,10 +138,19 @@ export default function MadeForYou() {
     }
     const results = await Promise.all(
       chunks.map(async (chunk) => {
-        const data = await fetchJson(
-          `https://api.spotify.com/v1/audio-features?ids=${chunk.join(",")}`
-        );
-        return data.audio_features ?? [];
+        try {
+          const data = await fetchJson(
+            `https://api.spotify.com/v1/audio-features?ids=${chunk.join(",")}`
+          );
+          return data.audio_features ?? [];
+        } catch (err) {
+          const msg = String(err?.message || "");
+          // Gracefully ignore 403 from audio-features and continue without it
+          if (msg.includes("/audio-features") && msg.includes("HTTP 403")) {
+            return [];
+          }
+          throw err;
+        }
       })
     );
     const map = {};
@@ -150,10 +164,11 @@ export default function MadeForYou() {
     setLoading(true);
     setError("");
     try {
-      // 1) Gather user taste profile from top and liked tracks
-      const [topTracks, savedTracks] = await Promise.all([
+      // 1) Gather user taste profile from top/saved tracks and top artists
+      const [topTracks, savedTracks, topArtists] = await Promise.all([
         getUserTopTracks(20),
         getUserSavedTracks(20),
+        getUserTopArtists(20),
       ]);
 
       const seedIds = (topTracks ?? []).slice(0, 5).map((t) => t.id);
@@ -161,13 +176,18 @@ export default function MadeForYou() {
       const seeds = [...seedIds, ...fallbackSaved].slice(0, 5);
       setSeedTrackIds(seeds);
 
-      // 2) Build centroid of user's audio features
+      // 2) Build centroid of user's audio features (best-effort; may fail)
       const tasteIds = [...new Set([...topTracks.map(t => t.id), ...savedTracks.map(t => t.id)])];
-      const tasteFeatureMap = await getAudioFeatures(tasteIds);
-      const tasteFeatures = tasteIds
-        .map((id) => tasteFeatureMap[id])
-        .filter(Boolean);
-      const centroid = computeCentroid(tasteFeatures);
+      let centroid = null;
+      try {
+        const tasteFeatureMap = await getAudioFeatures(tasteIds);
+        const tasteFeatures = tasteIds
+          .map((id) => tasteFeatureMap[id])
+          .filter(Boolean);
+        centroid = computeCentroid(tasteFeatures);
+      } catch (err) {
+        console.warn('Falling back: audio-features for user taste unavailable:', err?.message || err);
+      }
 
       // 3) Fetch recommendations
       const params = new URLSearchParams({
@@ -178,16 +198,36 @@ export default function MadeForYou() {
       const recData = await fetchJson(`https://api.spotify.com/v1/recommendations?${params.toString()}`);
       const recTracks = recData.tracks ?? [];
 
-      // 4) Score recommendations using similarity to centroid
+      // 4) Score recommendations using similarity, with graceful fallback
       const recIds = recTracks.map((t) => t.id);
-      const recFeatureMap = await getAudioFeatures(recIds);
+      let recFeatureMap = {};
+      try {
+        recFeatureMap = await getAudioFeatures(recIds);
+      } catch (err) {
+        console.warn('Falling back: audio-features for recommendations unavailable:', err?.message || err);
+        recFeatureMap = {};
+      }
+
+      const topTrackIdSet = new Set(topTracks.map(t => t.id));
+      const savedTrackIdSet = new Set(savedTracks.map(t => t.id));
+      const topArtistIdSet = new Set(topArtists.map(a => a.id));
+
       const scored = recTracks.map((track) => {
+        let pct = 0;
         const f = recFeatureMap[track.id];
-        const pct = computeSimilarityPercent(f, centroid);
-        return {
-          ...track,
-          recommendationScore: pct,
-        };
+        if (f && centroid) {
+          pct = computeSimilarityPercent(f, centroid);
+        } else {
+          // Fallback: score using artist overlap, track overlap, and popularity
+          const popularity = track.popularity ?? 0; // 0..100
+          const hasTopArtist = (track.artists || []).some(a => topArtistIdSet.has(a.id));
+          const inUserTracks = topTrackIdSet.has(track.id) || savedTrackIdSet.has(track.id);
+          let score = Math.round(popularity * 0.6); // up to 60 from popularity
+          if (hasTopArtist) score += 30;            // +30 if artist is among user's top artists
+          if (inUserTracks) score += 10;            // +10 if the exact track is in user's set
+          pct = clamp(score, 0, 100);
+        }
+        return { ...track, recommendationScore: pct };
       });
 
       // Sort by score desc by default
