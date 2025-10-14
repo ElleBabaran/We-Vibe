@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
-import { getPlaylists, createPlaylist as lpCreate, addTrackToPlaylist, addTracksToPlaylist, moveTrack, getPlaylist, updatePlaylistCover } from './localPlaylists';
+import { getPlaylists, createPlaylist as lpCreate, addTrackToPlaylist, addTracksToPlaylist, moveTrack, getPlaylist, updatePlaylistCover, removeTrack as removeTrackFromPlaylist, renamePlaylist } from './localPlaylists';
 import "./App.css";
 
 function Playlist() {
   const location = useLocation();
   const navigate = useNavigate();
   const playlist = location.state?.playlist;
-  const { addTrackToQueue, clearQueue, playTrackFromQueue, queue } = useMusicQueue();
+  const { addTrackToQueue, clearQueue, playTrackFromQueue, queue, getCurrentTrack } = useMusicQueue();
   const [visitedPlaylists, setVisitedPlaylists] = useState([]);
   
   const [tracks, setTracks] = useState([]);
@@ -20,6 +20,12 @@ function Playlist() {
   const [newPlaylistCoverImage, setNewPlaylistCoverImage] = useState('');
   const [customPlaylists, setCustomPlaylists] = useState([]);
   const [selectedCustomId, setSelectedCustomId] = useState('');
+  const isLocal = Boolean(playlist?.id?.startsWith('local_'));
+  const [localMeta, setLocalMeta] = useState(isLocal ? (getPlaylist(playlist.id) || playlist) : null);
+  const [editingCover, setEditingCover] = useState(false);
+  const [coverInput, setCoverInput] = useState('');
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -36,6 +42,7 @@ function Playlist() {
         if (localPlaylist) {
           setTracks(localPlaylist.tracks || []);
           setLoading(false);
+          setLocalMeta(localPlaylist);
         } else {
           setTracks([]);
           setLoading(false);
@@ -96,6 +103,49 @@ function Playlist() {
     tracks.forEach(track => addTrackToQueue(track));
     navigate('/playback');
     playTrackFromQueue(0);
+  };
+
+  // Local playlist: change cover image
+  const handleSaveCover = () => {
+    if (!isLocal || !coverInput.trim()) return;
+    const updated = updatePlaylistCover(playlist.id, coverInput.trim());
+    if (updated) {
+      setLocalMeta(updated);
+    }
+    setEditingCover(false);
+    setCoverInput('');
+  };
+
+  // Local playlist: rename
+  const handleSaveName = () => {
+    if (!isLocal || !nameInput.trim()) return;
+    const updated = renamePlaylist(playlist.id, nameInput.trim());
+    if (updated) {
+      setLocalMeta(updated);
+    }
+    setEditingName(false);
+    setNameInput('');
+  };
+
+  // Local playlist: add currently playing track to this playlist
+  const handleAddCurrentTrack = () => {
+    if (!isLocal) return;
+    const current = getCurrentTrack();
+    if (!current) return;
+    const updated = addTrackToPlaylist(playlist.id, current);
+    if (updated) {
+      setTracks(updated.tracks || []);
+    }
+  };
+
+  // Local playlist: remove a track by index
+  const handleRemoveTrack = (index) => {
+    if (!isLocal) return;
+    removeTrackFromPlaylist(playlist.id, index);
+    const updated = getPlaylist(playlist.id);
+    if (updated) {
+      setTracks(updated.tracks || []);
+    }
   };
 
   const createPlaylist = async () => {
@@ -439,10 +489,10 @@ function Playlist() {
           background: 'linear-gradient(180deg, #282828 0%, #121212 100%)',
           borderRadius: '8px',
         }}>
-          {playlist.images?.[0]?.url && (
+          {(isLocal ? localMeta?.images?.[0]?.url : playlist.images?.[0]?.url) && (
             <img
-              src={playlist.images[0].url}
-              alt={playlist.name}
+              src={(isLocal ? localMeta?.images?.[0]?.url : playlist.images?.[0]?.url)}
+              alt={(isLocal ? localMeta?.name : playlist.name)}
               style={{
                 width: '232px',
                 height: '232px',
@@ -469,7 +519,7 @@ function Playlist() {
               color: '#fff',
               lineHeight: '1.2'
             }}>
-              {playlist.name}
+              {isLocal ? (localMeta?.name || playlist.name) : playlist.name}
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#b3b3b3', marginBottom: '20px' }}>
               <span style={{ fontWeight: 'bold', color: '#fff' }}>
@@ -510,6 +560,44 @@ function Playlist() {
             >
               ▶️ Play Playlist
             </button>
+
+            {isLocal && (
+              <div style={{ marginTop: '12px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {!editingName ? (
+                  <button
+                    onClick={() => { setEditingName(true); setNameInput(localMeta?.name || ''); }}
+                    style={{ padding: '8px 14px', borderRadius: 18, border: '1px solid #333', background: '#181818', color: '#fff' }}
+                  >
+                    ✏️ Rename
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="New name" style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#121212', color: '#fff' }} />
+                    <button onClick={handleSaveName} style={{ padding: '8px 14px', borderRadius: 18, border: 'none', background: '#1DB954', color: '#fff', fontWeight: 700 }}>Save</button>
+                    <button onClick={() => { setEditingName(false); setNameInput(''); }} style={{ padding: '8px 14px', borderRadius: 18, border: '1px solid #333', background: 'transparent', color: '#b3b3b3' }}>Cancel</button>
+                  </div>
+                )}
+
+                {!editingCover ? (
+                  <button
+                    onClick={() => setEditingCover(true)}
+                    style={{ padding: '8px 14px', borderRadius: 18, border: '1px solid #333', background: '#181818', color: '#fff' }}
+                  >
+                    🖼️ Change Cover
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input type="url" value={coverInput} onChange={(e) => setCoverInput(e.target.value)} placeholder="Cover image URL" style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #333', background: '#121212', color: '#fff', minWidth: 260 }} />
+                    <button onClick={handleSaveCover} style={{ padding: '8px 14px', borderRadius: 18, border: 'none', background: '#1DB954', color: '#fff', fontWeight: 700 }}>Save</button>
+                    <button onClick={() => { setEditingCover(false); setCoverInput(''); }} style={{ padding: '8px 14px', borderRadius: 18, border: '1px solid #333', background: 'transparent', color: '#b3b3b3' }}>Cancel</button>
+                  </div>
+                )}
+
+                <button onClick={handleAddCurrentTrack} style={{ padding: '8px 14px', borderRadius: 18, border: '1px solid #333', background: '#181818', color: '#fff' }}>
+                  ➕ Save Current Track Here
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -583,6 +671,7 @@ function Playlist() {
             }}>
               <span style={{ width: '40px', textAlign: 'center' }}>#</span>
               <span style={{ flex: 1 }}>TITLE</span>
+              {isLocal && <span style={{ width: '80px' }}>ACTIONS</span>}
               <span style={{ width: '80px', textAlign: 'right' }}>DURATION</span>
             </div>
             
@@ -624,6 +713,14 @@ function Playlist() {
                     {track.artists?.map(a => a.name).join(', ')}
                   </p>
                 </div>
+
+                {isLocal && (
+                  <span style={{ width: '80px', textAlign: 'left' }} onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => handleRemoveTrack(index)} style={{ padding: '6px 10px', borderRadius: 14, border: '1px solid #333', background: 'transparent', color: '#b3b3b3', fontSize: '0.8rem' }}>
+                      Remove
+                    </button>
+                  </span>
+                )}
                 
                 <span style={{ 
                   width: '80px', 
