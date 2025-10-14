@@ -5,6 +5,7 @@ import Login from "./login";
 import Callback from "./callback";
 import Playback from "./Playback";
 import AlbumView from "./AlbumView";
+import MadeForYou from "./MadeForYou";
 import Browse from "./browse";
 import Account from "./Account";
 import Playlist from "./Playlist";
@@ -23,6 +24,7 @@ function App() {
           <Route path="/playback" element={<Playback />} />
           <Route path="/album" element={<AlbumView />} />
           <Route path="/playlist" element={<Playlist />} />
+          <Route path="/mdf" element={<MadeForYou />} />
         </Routes>
         {/* Persistent bottom mini-player (hidden on /playback internally) */}
         <MiniPlayer />

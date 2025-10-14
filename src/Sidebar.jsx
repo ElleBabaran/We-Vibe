@@ -30,7 +30,7 @@ export default function Sidebar() {
         <ul style={{ margin: '0', padding: '0' }}>
           <li><Link to="/playlist">Playlists</Link></li>
           <li><Link to="/recents">Recents</Link></li>
-          <li><Link to="mdf">Made for you</Link></li>
+          <li><Link to="/mdf">Made for you</Link></li>
           <li><Link to="artist">Artists</Link></li>
         </ul>
       </div>
