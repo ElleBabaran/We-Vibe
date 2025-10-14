@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
-import { getPlaylists, createPlaylist as lpCreate, addTrackToPlaylist, addTracksToPlaylist, moveTrack, getPlaylist } from './localPlaylists';
+import { getPlaylists, createPlaylist as lpCreate, addTrackToPlaylist, addTracksToPlaylist, moveTrack, getPlaylist, updatePlaylistCover } from './localPlaylists';
 import "./App.css";
 
 function Playlist() {
@@ -17,6 +17,7 @@ function Playlist() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
+  const [newPlaylistCoverImage, setNewPlaylistCoverImage] = useState('');
   const [customPlaylists, setCustomPlaylists] = useState([]);
   const [selectedCustomId, setSelectedCustomId] = useState('');
 
@@ -28,28 +29,41 @@ function Playlist() {
     }
 
     if (playlist) {
-      // Fetch playlist tracks
-      fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          setTracks(data.items?.map(item => item.track) || []);
+      // Check if it's a local playlist
+      if (playlist.id.startsWith('local_')) {
+        // Load local playlist tracks
+        const localPlaylist = getPlaylist(playlist.id);
+        if (localPlaylist) {
+          setTracks(localPlaylist.tracks || []);
           setLoading(false);
+        } else {
+          setTracks([]);
+          setLoading(false);
+        }
+      } else {
+        // Fetch Spotify playlist tracks
+        fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
+          headers: { Authorization: `Bearer ${token}` },
         })
-        .catch((err) => {
-          console.error("Error fetching playlist tracks:", err);
-          setLoading(false);
-        });
+          .then((res) => res.json())
+          .then((data) => {
+            setTracks(data.items?.map(item => item.track) || []);
+            setLoading(false);
+          })
+          .catch((err) => {
+            console.error("Error fetching playlist tracks:", err);
+            setLoading(false);
+          });
 
-      // Record visited playlist
-      try {
-        const raw = localStorage.getItem('wv_playlists_visited');
-        const list = raw ? JSON.parse(raw) : [];
-        const entry = { id: playlist.id, name: playlist.name, images: playlist.images };
-        const filtered = [entry, ...list.filter(p => p.id !== playlist.id)].slice(0, 12);
-        localStorage.setItem('wv_playlists_visited', JSON.stringify(filtered));
-      } catch (_) {}
+        // Record visited playlist
+        try {
+          const raw = localStorage.getItem('wv_playlists_visited');
+          const list = raw ? JSON.parse(raw) : [];
+          const entry = { id: playlist.id, name: playlist.name, images: playlist.images };
+          const filtered = [entry, ...list.filter(p => p.id !== playlist.id)].slice(0, 12);
+          localStorage.setItem('wv_playlists_visited', JSON.stringify(filtered));
+        } catch (_) {}
+      }
     } else {
       setLoading(false);
     }
@@ -117,6 +131,7 @@ function Playlist() {
         alert(`Playlist "${newPlaylistName}" created successfully!`);
         setNewPlaylistName('');
         setNewPlaylistDescription('');
+        setNewPlaylistCoverImage('');
         setShowCreateForm(false);
 
         // Store in "created" list
@@ -139,9 +154,11 @@ function Playlist() {
   // Create local custom playlist
   const createLocalPlaylist = () => {
     if (!newPlaylistName.trim()) return;
-    const p = lpCreate(newPlaylistName.trim());
+    const p = lpCreate(newPlaylistName.trim(), newPlaylistCoverImage.trim() || null);
     setCustomPlaylists(prev => [p, ...prev]);
     setNewPlaylistName('');
+    setNewPlaylistDescription('');
+    setNewPlaylistCoverImage('');
     setShowCreateForm(false);
   };
 
@@ -244,7 +261,7 @@ function Playlist() {
               />
             </div>
             
-            <div style={{ marginBottom: '30px' }}>
+            <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#fff', fontWeight: 'bold' }}>
                 Description (Optional)
               </label>
@@ -266,7 +283,45 @@ function Playlist() {
               />
             </div>
             
-            <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
+            <div style={{ marginBottom: '30px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: '#fff', fontWeight: 'bold' }}>
+                Cover Image URL (Optional)
+              </label>
+              <input
+                type="url"
+                value={newPlaylistCoverImage}
+                onChange={(e) => setNewPlaylistCoverImage(e.target.value)}
+                placeholder="Enter cover image URL..."
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: '#181818',
+                  border: '2px solid #282828',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '1rem',
+                }}
+              />
+              {newPlaylistCoverImage && (
+                <div style={{ marginTop: '10px', textAlign: 'center' }}>
+                  <img
+                    src={newPlaylistCoverImage}
+                    alt="Cover preview"
+                    style={{
+                      maxWidth: '200px',
+                      maxHeight: '200px',
+                      borderRadius: '8px',
+                      border: '2px solid #282828',
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
               <button
                 onClick={createPlaylist}
                 disabled={!newPlaylistName.trim()}
@@ -282,7 +337,25 @@ function Playlist() {
                   transition: 'all 0.2s',
                 }}
               >
-                Create Playlist
+                Create on Spotify
+              </button>
+              
+              <button
+                onClick={createLocalPlaylist}
+                disabled={!newPlaylistName.trim()}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: newPlaylistName.trim() ? '#7B68EE' : '#666',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '24px',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  cursor: newPlaylistName.trim() ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Create Local Playlist
               </button>
               
               <button
@@ -313,21 +386,43 @@ function Playlist() {
       <Sidebar />
       
       <div className="home-content">
-        {/* Visited and Created Playlists */}
+        {/* Spotify Playlists */}
         <div style={{ marginBottom: '30px' }}>
-          <h2 style={{ fontSize: '1.8rem', marginBottom: '12px', color: '#fff' }}>Your Playlists</h2>
+          <h2 style={{ fontSize: '1.8rem', marginBottom: '12px', color: '#fff' }}>Your Spotify Playlists</h2>
           {visitedPlaylists.length === 0 ? (
-            <p style={{ color: '#b3b3b3' }}>No playlists yet</p>
+            <p style={{ color: '#b3b3b3' }}>No Spotify playlists yet</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
               {visitedPlaylists.map(p => (
-                <div key={p.id} onClick={() => navigate('/playlist', { state: { playlist: p } })} style={{ background: '#181818', padding: '12px', borderRadius: '8px', cursor: 'pointer' }}>
+                <div key={p.id} onClick={() => navigate('/playlist', { state: { playlist: p } })} style={{ background: '#181818', padding: '12px', borderRadius: '8px', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
                   {p.images?.[0]?.url ? (
                     <img src={p.images[0].url} alt={p.name} style={{ width: '100%', height: '130px', objectFit: 'cover', borderRadius: '4px', marginBottom: '8px' }} />
                   ) : (
                     <div style={{ width: '100%', height: '130px', background: '#333', borderRadius: '4px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: '2rem' }}>🎵</div>
                   )}
                   <p style={{ color: '#fff', fontWeight: 'bold', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{p.name}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Local Custom Playlists */}
+        <div style={{ marginBottom: '30px' }}>
+          <h2 style={{ fontSize: '1.8rem', marginBottom: '12px', color: '#fff' }}>Your Local Playlists</h2>
+          {customPlaylists.length === 0 ? (
+            <p style={{ color: '#b3b3b3' }}>No local playlists yet. Create one above!</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
+              {customPlaylists.map(p => (
+                <div key={p.id} onClick={() => navigate('/playlist', { state: { playlist: p } })} style={{ background: '#181818', padding: '12px', borderRadius: '8px', cursor: 'pointer', transition: 'transform 0.2s', border: '2px solid #7B68EE' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                  {p.images?.[0]?.url ? (
+                    <img src={p.images[0].url} alt={p.name} style={{ width: '100%', height: '130px', objectFit: 'cover', borderRadius: '4px', marginBottom: '8px' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: '130px', background: '#333', borderRadius: '4px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: '2rem' }}>🎵</div>
+                  )}
+                  <p style={{ color: '#fff', fontWeight: 'bold', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{p.name}</p>
+                  <p style={{ color: '#7B68EE', fontSize: '0.8rem', marginTop: '4px' }}>Local Playlist</p>
                 </div>
               ))}
             </div>
@@ -378,10 +473,16 @@ function Playlist() {
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#b3b3b3', marginBottom: '20px' }}>
               <span style={{ fontWeight: 'bold', color: '#fff' }}>
-                {playlist.owner?.display_name}
+                {playlist.owner?.display_name || (playlist.id.startsWith('local_') ? 'Local Playlist' : 'Unknown')}
               </span>
               <span>•</span>
               <span>{tracks.length} songs</span>
+              {playlist.id.startsWith('local_') && (
+                <>
+                  <span>•</span>
+                  <span style={{ color: '#7B68EE' }}>Local</span>
+                </>
+              )}
             </div>
             
             <button
@@ -413,31 +514,59 @@ function Playlist() {
         </div>
 
         {/* Back Button */}
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            marginBottom: '20px',
-            padding: '10px 24px',
-            backgroundColor: 'transparent',
-            color: '#b3b3b3',
-            border: '2px solid #b3b3b3',
-            borderRadius: '20px',
-            fontSize: '0.9rem',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#fff';
-            e.currentTarget.style.borderColor = '#fff';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#b3b3b3';
-            e.currentTarget.style.borderColor = '#b3b3b3';
-          }}
-        >
-          ← Back
-        </button>
+        <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', alignItems: 'center' }}>
+          <button
+            onClick={() => navigate(-1)}
+            style={{
+              padding: '10px 24px',
+              backgroundColor: 'transparent',
+              color: '#b3b3b3',
+              border: '2px solid #b3b3b3',
+              borderRadius: '20px',
+              fontSize: '0.9rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#fff';
+              e.currentTarget.style.borderColor = '#fff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#b3b3b3';
+              e.currentTarget.style.borderColor = '#b3b3b3';
+            }}
+          >
+            ← Back
+          </button>
+          
+          {playlist.id.startsWith('local_') && (
+            <button
+              onClick={() => navigate('/browse')}
+              style={{
+                padding: '10px 24px',
+                backgroundColor: '#7B68EE',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '20px',
+                fontSize: '0.9rem',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#9370DB';
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#7B68EE';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              ➕ Add Songs
+            </button>
+          )}
+        </div>
 
         {/* Track List */}
         {loading ? (
