@@ -151,13 +151,37 @@ function Playlist() {
     }
   };
 
+  // Handle image file upload
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Check file size (limit to 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image file is too large. Please choose a file smaller than 5MB.');
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setNewPlaylistCoverImage(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Create local custom playlist
   const createLocalPlaylist = () => {
     if (!newPlaylistName.trim()) return;
     const playlistData = {
       name: newPlaylistName.trim(),
       description: newPlaylistDescription.trim(),
-      coverImage: newPlaylistCoverImage.trim()
+      coverImage: newPlaylistCoverImage // No need to trim base64 data
     };
     const p = lpCreate(playlistData.name, playlistData.description, playlistData.coverImage);
     
@@ -365,40 +389,82 @@ function Playlist() {
             
             <div style={{ marginBottom: '30px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#fff', fontWeight: 'bold' }}>
-                Cover Image URL (Optional)
+                Cover Image (Optional)
               </label>
-              <input
-                type="url"
-                value={newPlaylistCoverImage}
-                onChange={(e) => setNewPlaylistCoverImage(e.target.value)}
-                placeholder="Enter image URL (e.g., https://example.com/image.jpg)"
-                style={{
+              <div style={{ 
+                position: 'relative',
+                display: 'inline-block',
+                width: '100%'
+              }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  style={{
+                    position: 'absolute',
+                    opacity: 0,
+                    width: '100%',
+                    height: '100%',
+                    cursor: 'pointer'
+                  }}
+                />
+                <div style={{
                   width: '100%',
                   padding: '12px 16px',
                   backgroundColor: '#181818',
-                  border: '2px solid #282828',
+                  border: newPlaylistCoverImage ? '2px solid #1DB954' : '2px dashed #282828',
                   borderRadius: '8px',
-                  color: '#fff',
+                  color: newPlaylistCoverImage ? '#1DB954' : '#b3b3b3',
                   fontSize: '1rem',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
                 }}
-              />
+                onMouseEnter={(e) => {
+                  if (!newPlaylistCoverImage) {
+                    e.currentTarget.style.borderColor = '#1DB954';
+                    e.currentTarget.style.color = '#1DB954';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!newPlaylistCoverImage) {
+                    e.currentTarget.style.borderColor = '#282828';
+                    e.currentTarget.style.color = '#b3b3b3';
+                  }
+                }}>
+                  {newPlaylistCoverImage ? '✅ Image selected' : '📁 Choose image file...'}
+                </div>
+              </div>
               {newPlaylistCoverImage && (
                 <div style={{ marginTop: '12px' }}>
                   <p style={{ color: '#b3b3b3', fontSize: '0.9rem', marginBottom: '8px' }}>Preview:</p>
-                  <img 
-                    src={newPlaylistCoverImage} 
-                    alt="Cover preview" 
-                    style={{ 
-                      width: '120px', 
-                      height: '120px', 
-                      objectFit: 'cover', 
-                      borderRadius: '8px',
-                      border: '2px solid #282828'
-                    }}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <img 
+                      src={newPlaylistCoverImage} 
+                      alt="Cover preview" 
+                      style={{ 
+                        width: '120px', 
+                        height: '120px', 
+                        objectFit: 'cover', 
+                        borderRadius: '8px',
+                        border: '2px solid #282828'
+                      }}
+                    />
+                    <button
+                      onClick={() => setNewPlaylistCoverImage('')}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#666',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
