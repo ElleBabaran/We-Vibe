@@ -21,10 +21,17 @@ export function getPlaylists() {
   return loadAll();
 }
 
-export function createPlaylist(name) {
+export function createPlaylist(name, description = '', coverImage = '') {
   const playlists = loadAll();
   const id = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const playlist = { id, name: name || 'New Playlist', tracks: [] };
+  const playlist = { 
+    id, 
+    name: name || 'New Playlist', 
+    description: description || '',
+    coverImage: coverImage || '',
+    tracks: [],
+    createdAt: new Date().toISOString()
+  };
   saveAll([playlist, ...playlists]);
   return playlist;
 }
