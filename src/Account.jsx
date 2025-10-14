@@ -8,17 +8,20 @@ export default function Account() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: "",
-    email: "",
-    password: "",
+    email: "user@example.com", // This will be populated from user data
+    password: "••••••••", // Masked password display
     gender: "",
     birthDay: "",
     birthMonth: "",
-    birthYear: "",
-    country: ""
+    birthYear: ""
   });
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    // Only allow changes to editable fields
+    if (name === 'email' || name === 'password') {
+      return; // Prevent changes to email and password
+    }
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -71,26 +74,16 @@ export default function Account() {
 
               <div className="form-group">
                 <label className="form-label">Email</label>
-                <input
-                  type="email"
-                  name="email"
-                  className="form-input"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                />
+                <div className="form-value-display">
+                  {formData.email}
+                </div>
               </div>
 
               <div className="form-group">
                 <label className="form-label">Password</label>
-                <input
-                  type="password"
-                  name="password"
-                  className="form-input"
-                  placeholder="Enter your password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                />
+                <div className="form-value-display">
+                  {formData.password}
+                </div>
               </div>
 
               <div className="form-group">
@@ -153,30 +146,6 @@ export default function Account() {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Country or region</label>
-                <select
-                  name="country"
-                  className="form-select"
-                  value={formData.country}
-                  onChange={handleInputChange}
-                  required // Make selection mandatory
-                >
-                  <option value="" disabled hidden>
-                      Select your country
-                  </option>
-                  <option value="Philippines">Philippines</option>
-                  <option value="United States">United States</option>
-                  <option value="United Kingdom">United Kingdom</option>
-                  <option value="Canada">Canada</option>
-                  <option value="Australia">Australia</option>
-                  <option value="Japan">Japan</option>
-                  <option value="South Korea">South Korea</option>
-                  <option value="Singapore">Singapore</option>
-                  <option value="Malaysia">Malaysia</option>
-                  <option value="Thailand">Thailand</option>
-                </select>
-              </div>
 
               <div className="form-group checkbox-group">
                 <label className="checkbox-label">

@@ -58,9 +58,14 @@
 
 .form-value-display {
   font-size: 1rem;
-  color: #fff;
-  padding: 14px 0;
-  background-color: transparent;
+  color: #b3b3b3;
+  padding: 14px 18px;
+  background-color: #2a2a2a;
+  border: 1px solid #3e3e3e;
+  border-radius: 4px;
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  user-select: none;
+  cursor: not-allowed;
 }
 
 .form-input,
