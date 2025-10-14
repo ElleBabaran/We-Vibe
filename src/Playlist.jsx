@@ -204,51 +204,7 @@ function Playlist() {
     return `${minutes}:${seconds.padStart(2, '0')}`;
   };
 
-  if (!playlist && !showCreateForm) {
-    return (
-      <div className="home-container">
-        <Sidebar />
-        
-        <div className="home-content">
-          <div style={{ textAlign: 'center', padding: '40px' }}>
-            <h1 style={{ fontSize: '2.5rem', marginBottom: '20px', color: '#fff' }}>
-              🎵 Playlists
-            </h1>
-            <p style={{ color: '#b3b3b3', marginBottom: '30px', fontSize: '1.1rem' }}>
-              Create and manage your playlists
-            </p>
-            
-            <button
-              onClick={() => setShowCreateForm(true)}
-              style={{
-                padding: '16px 32px',
-                backgroundColor: '#1DB954',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '24px',
-                fontSize: '1.1rem',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: '0 4px 12px rgba(29, 185, 84, 0.3)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#1ed760';
-                e.currentTarget.style.transform = 'scale(1.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#1DB954';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            >
-              ➕ Create New Playlist
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // When creating, show dedicated form screen
   if (showCreateForm) {
     return (
       <div className="home-container">
@@ -401,11 +357,46 @@ function Playlist() {
     );
   }
 
+  // else: fall through to main screen
+
   return (
     <div className="home-container">
       <Sidebar />
       
       <div className="home-content">
+        {/* Header + Create button */}
+        <div style={{ textAlign: 'center', padding: '10px 20px 30px' }}>
+          <h1 style={{ fontSize: '2.2rem', marginBottom: '10px', color: '#fff' }}>🎵 Playlists</h1>
+          <p style={{ color: '#b3b3b3', marginBottom: '18px', fontSize: '1rem' }}>
+            Create and manage your playlists
+          </p>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: '#1DB954',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '24px',
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 4px 12px rgba(29, 185, 84, 0.3)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#1ed760';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#1DB954';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            ➕ Create New Playlist
+          </button>
+        </div>
+
         {/* Spotify Playlists */}
         <div style={{ marginBottom: '30px' }}>
           <h2 style={{ fontSize: '1.8rem', marginBottom: '12px', color: '#fff' }}>Your Spotify Playlists</h2>
@@ -449,7 +440,8 @@ function Playlist() {
           )}
         </div>
 
-        {/* Playlist Header */}
+        {/* Playlist Header (only when a playlist is selected) */}
+        {playlist && (
         <div style={{
           display: 'flex',
           alignItems: 'flex-end',
@@ -532,8 +524,10 @@ function Playlist() {
             </button>
           </div>
         </div>
+        )}
 
-        {/* Back Button */}
+        {/* Back Button & local actions (only when a playlist is selected) */}
+        {playlist && (
         <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', alignItems: 'center' }}>
           <button
             onClick={() => navigate(-1)}
@@ -628,6 +622,7 @@ function Playlist() {
                 onClick={() => {
                   if (confirm('Delete this playlist? This cannot be undone.')) {
                     deletePlaylist(playlist.id);
+                    setCustomPlaylists(prev => prev.filter(p => p.id !== playlist.id));
                     alert('Playlist deleted');
                     navigate('/playlist');
                   }
@@ -657,9 +652,10 @@ function Playlist() {
             </>
           )}
         </div>
+        )}
 
-        {/* Track List */}
-        {loading ? (
+        {/* Track List (only when a playlist is selected) */}
+        {playlist && (loading ? (
           <p style={{ color: '#b3b3b3' }}>Loading tracks...</p>
         ) : (
           <div style={{ marginBottom: '40px' }}>
@@ -755,7 +751,7 @@ function Playlist() {
               </div>
             ))}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
