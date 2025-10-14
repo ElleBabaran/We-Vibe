@@ -8,26 +8,38 @@ export default function Account() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: "",
-    email: "",
-    password: "",
+    email: "user@example.com", // Sample email - displayed but not editable
+    password: "samplepassword", // Sample password - will be shown as asterisks
     gender: "",
     birthDay: "",
     birthMonth: "",
     birthYear: "",
-    country: ""
+    country: "Philippines" // Sample country - displayed but not editable
   });
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    // Only allow changes to editable fields: username, gender, birthDay, birthMonth, birthYear
+    const editableFields = ['username', 'gender', 'birthDay', 'birthMonth', 'birthYear'];
+    if (editableFields.includes(name)) {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleSaveProfile = (e) => {
     e.preventDefault();
-    console.log("Profile saved:", formData);
+    // Only save the editable fields
+    const editableData = {
+      username: formData.username,
+      gender: formData.gender,
+      birthDay: formData.birthDay,
+      birthMonth: formData.birthMonth,
+      birthYear: formData.birthYear
+    };
+    console.log("Profile saved:", editableData);
     // Add save functionality here later
     alert("Profile saved successfully!");
   };
@@ -71,26 +83,16 @@ export default function Account() {
 
               <div className="form-group">
                 <label className="form-label">Email</label>
-                <input
-                  type="email"
-                  name="email"
-                  className="form-input"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                />
+                <div className="form-value-display">
+                  {formData.email}
+                </div>
               </div>
 
               <div className="form-group">
                 <label className="form-label">Password</label>
-                <input
-                  type="password"
-                  name="password"
-                  className="form-input"
-                  placeholder="Enter your password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                />
+                <div className="form-value-display">
+                  {'*'.repeat(formData.password.length)}
+                </div>
               </div>
 
               <div className="form-group">
@@ -155,27 +157,9 @@ export default function Account() {
 
               <div className="form-group">
                 <label className="form-label">Country or region</label>
-                <select
-                  name="country"
-                  className="form-select"
-                  value={formData.country}
-                  onChange={handleInputChange}
-                  required // Make selection mandatory
-                >
-                  <option value="" disabled hidden>
-                      Select your country
-                  </option>
-                  <option value="Philippines">Philippines</option>
-                  <option value="United States">United States</option>
-                  <option value="United Kingdom">United Kingdom</option>
-                  <option value="Canada">Canada</option>
-                  <option value="Australia">Australia</option>
-                  <option value="Japan">Japan</option>
-                  <option value="South Korea">South Korea</option>
-                  <option value="Singapore">Singapore</option>
-                  <option value="Malaysia">Malaysia</option>
-                  <option value="Thailand">Thailand</option>
-                </select>
+                <div className="form-value-display">
+                  {formData.country}
+                </div>
               </div>
 
               <div className="form-group checkbox-group">
