@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
-import { getPlaylists, addTracksToPlaylist } from './localPlaylists';
+import { getPlaylists, addTracksToPlaylist, addTrackToPlaylist } from './localPlaylists';
 import "./App.css";
 
 function AlbumView() {
@@ -14,6 +14,7 @@ function AlbumView() {
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [customPlaylists, setCustomPlaylists] = useState([]);
+  const [singleAddTarget, setSingleAddTarget] = useState('');
 
   useEffect(() => {
     if (!album) {
@@ -74,6 +75,13 @@ function AlbumView() {
     const tracksWithAlbum = tracks.map(t => ({ ...t, album }));
     addTracksToPlaylist(pid, tracksWithAlbum);
     alert('Album added to your playlist');
+  };
+
+  const addSingleToCustom = (pid, track) => {
+    if (!pid || !track) return;
+    const trackWithAlbum = { ...track, album };
+    addTrackToPlaylist(pid, trackWithAlbum);
+    alert('Added to your playlist');
   };
 
   const formatDuration = (ms) => {
@@ -271,6 +279,21 @@ function AlbumView() {
                 }}>
                   {formatDuration(track.duration_ms)}
                 </span>
+
+                {customPlaylists.length > 0 && (
+                  <span style={{ marginLeft: 12 }} onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={singleAddTarget}
+                      onChange={(e) => { setSingleAddTarget(e.target.value); addSingleToCustom(e.target.value, track); }}
+                      style={{ background: '#181818', color: '#fff', border: '1px solid #333', borderRadius: '8px', padding: '6px 8px' }}
+                    >
+                      <option value="">Add to…</option>
+                      {customPlaylists.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </span>
+                )}
               </div>
             ))}
           </div>
