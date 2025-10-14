@@ -112,6 +112,19 @@ export const MusicQueueProvider = ({ children }) => {
     });
   }, [currentTrackIndex]);
 
+  // Sync current track index to a playing track URI reported by the SDK
+  const syncCurrentToUri = useCallback((uri) => {
+    if (!uri) return;
+    const matchIndex = queue.findIndex((track) => {
+      if (!track) return false;
+      const trackUri = track.uri || (track.id ? `spotify:track:${track.id}` : null);
+      return trackUri === uri;
+    });
+    if (matchIndex !== -1 && matchIndex !== currentTrackIndex) {
+      setCurrentTrackIndex(matchIndex);
+    }
+  }, [queue, currentTrackIndex]);
+
   // Clear queue and play a single track atomically
   const clearAndPlayTrack = useCallback((track) => {
     console.log('🎵 clearAndPlayTrack called with:', track.name);
@@ -155,6 +168,7 @@ export const MusicQueueProvider = ({ children }) => {
     moveTrackInQueue,
     clearAndPlayTrack,
     clearAndPlayPlaylist,
+    syncCurrentToUri,
   };
 
   return (

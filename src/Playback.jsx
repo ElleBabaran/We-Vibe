@@ -19,7 +19,8 @@ function Playback() {
     removeTrackFromQueue,
     addTrackToQueue,
     playTrackFromQueue,
-    clearAndPlayTrack
+    clearAndPlayTrack,
+    syncCurrentToUri
   } = useMusicQueue();
 
   const [player, setPlayer] = useState(null);
@@ -42,6 +43,7 @@ function Playback() {
     }
 
     // Initialize Spotify Web Playback SDK
+    let sdkPlayer = null;
     const loadPlayer = () => {
       if (window.Spotify) {
         const player = new window.Spotify.Player({
@@ -49,12 +51,16 @@ function Playback() {
           getOAuthToken: cb => cb(token),
           volume: 0.7,
         });
+        sdkPlayer = player;
 
         // Listeners
         player.addListener("ready", async ({ device_id }) => {
           console.log("Spotify Player ready with Device ID:", device_id);
           setDeviceId(device_id);
           setPlayer(player);
+          try {
+            localStorage.setItem("spotify_device_id", device_id);
+          } catch (_) {}
 
           // Attempt to transfer playback to this Web Playback SDK device
           try {
@@ -74,6 +80,10 @@ function Playback() {
 
         player.addListener("not_ready", ({ device_id }) => {
           console.warn("Device ID has gone offline", device_id);
+          try {
+            const stored = localStorage.getItem("spotify_device_id");
+            if (stored === device_id) localStorage.removeItem("spotify_device_id");
+          } catch (_) {}
         });
 
         player.addListener("initialization_error", ({ message }) => {
@@ -107,6 +117,12 @@ function Playback() {
             }
             return prev;
           });
+
+          // Keep queue index in sync with the SDK's current track
+          const trackUri = state.track_window?.current_track?.uri;
+          if (trackUri) {
+            try { syncCurrentToUri(trackUri); } catch (_) {}
+          }
           
           if (typeof state.position === "number") setPositionMs(state.position);
           if (typeof state.duration === "number") setDurationMs(state.duration);
@@ -120,20 +136,26 @@ function Playback() {
     };
 
     // Wait for Spotify SDK to load
+    let timer;
     if (window.Spotify) {
       loadPlayer();
     } else {
       // Retry after a short delay
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
         if (window.Spotify) {
-    loadPlayer();
+          loadPlayer();
         } else {
           console.error("Spotify SDK failed to load");
         }
       }, 1000);
-      
-      return () => clearTimeout(timer);
     }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      try {
+        sdkPlayer?.disconnect();
+      } catch (_) {}
+    };
     
     // Fetch fallback tracks when no queue exists
     fetchFallbackTracks(token);
@@ -170,38 +192,38 @@ function Playback() {
     
     if (deviceId && currentTrack && isPlaying && player && currentTrack.uri) {
       console.log('▶️ Starting playback:', currentTrack.name);
-      
-      const playTrack = async () => {
+      const maybeStart = async () => {
+        try {
+          const state = await player.getCurrentState?.();
+          const alreadyPlayingThis = state && !state.paused && (state.track_window?.current_track?.uri === currentTrack.uri);
+          if (alreadyPlayingThis) {
+            console.log('⏭️ Already playing current track, skipping restart');
+            return;
+          }
+        } catch (_) {}
         try {
           await startPlayback(currentTrack);
         } catch (error) {
           console.error('Playback failed:', error);
         }
       };
-      
-      // Add a small delay to ensure all state updates are processed
-      const timer = setTimeout(() => {
-        playTrack();
-      }, 200);
-      
-      return () => clearTimeout(timer);
-    } else if (deviceId && currentTrack && !isPlaying && player) {
-      // If isPlaying is false, pause the player
-      console.log('⏸️ Pausing playback');
-      player.pause?.().catch(err => console.warn('Pause failed:', err));
+
+      // Start immediately to avoid races with polling flipping isPlaying
+      void maybeStart();
     }
   }, [currentTrack, isPlaying, deviceId, player]);
 
-  // Smooth progress polling
+  // Smooth progress polling (avoid thrashing isPlaying)
   useEffect(() => {
     if (!player) return;
     const interval = setInterval(async () => {
       try {
         const state = await player.getCurrentState();
         if (!state) return;
-          setIsPlaying(!state.paused);
-          setPositionMs(state.position || 0);
-          setDurationMs(state.duration || 0);
+        const playing = !state.paused;
+        setIsPlaying(prev => (prev !== playing ? playing : prev));
+        setPositionMs(state.position || 0);
+        setDurationMs(state.duration || 0);
       } catch (_) {
         // no-op
       }
