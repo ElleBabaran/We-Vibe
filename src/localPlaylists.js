@@ -81,4 +81,20 @@ export function updatePlaylistCover(playlistId, coverImage) {
   saveAll(playlists);
 }
 
+// Delete an entire local playlist by id
+export function deletePlaylist(playlistId) {
+  const playlists = loadAll();
+  const updated = playlists.filter(p => p.id !== playlistId);
+  saveAll(updated);
+}
+
+// Rename a local playlist
+export function renamePlaylist(playlistId, newName) {
+  const playlists = loadAll();
+  const idx = playlists.findIndex(p => p.id === playlistId);
+  if (idx === -1) return;
+  playlists[idx].name = newName || playlists[idx].name;
+  saveAll(playlists);
+}
+
 
