@@ -57,9 +57,14 @@ export const MusicQueueProvider = ({ children }) => {
 
   // Play specific track from queue
   const playTrackFromQueue = useCallback((index) => {
+    console.log('🎵 playTrackFromQueue called with index:', index);
     if (index >= 0 && index < queue.length) {
+      setIsPlaying(false); // Stop current playback first
       setCurrentTrackIndex(index);
-      setIsPlaying(true);
+      // Use setTimeout to ensure state updates are processed
+      setTimeout(() => {
+        setIsPlaying(true);
+      }, 100);
     }
   }, [queue.length]);
 
@@ -107,6 +112,31 @@ export const MusicQueueProvider = ({ children }) => {
     });
   }, [currentTrackIndex]);
 
+  // Clear queue and play a single track atomically
+  const clearAndPlayTrack = useCallback((track) => {
+    console.log('🎵 clearAndPlayTrack called with:', track.name);
+    setIsPlaying(false); // Stop current playback first
+    setQueue([track]);
+    setCurrentTrackIndex(0);
+    // Use setTimeout to ensure state updates are processed
+    setTimeout(() => {
+      setIsPlaying(true);
+    }, 100);
+  }, []);
+
+  // Clear queue and play multiple tracks atomically
+  const clearAndPlayPlaylist = useCallback((tracks, startIndex = 0) => {
+    if (!tracks || tracks.length === 0) return;
+    console.log('🎵 clearAndPlayPlaylist called with', tracks.length, 'tracks, starting at index', startIndex);
+    setIsPlaying(false); // Stop current playback first
+    setQueue(tracks);
+    setCurrentTrackIndex(startIndex);
+    // Use setTimeout to ensure state updates are processed
+    setTimeout(() => {
+      setIsPlaying(true);
+    }, 100);
+  }, []);
+
   const value = {
     queue,
     currentTrackIndex,
@@ -123,6 +153,8 @@ export const MusicQueueProvider = ({ children }) => {
     getCurrentTrack,
     getNextTracks,
     moveTrackInQueue,
+    clearAndPlayTrack,
+    clearAndPlayPlaylist,
   };
 
   return (

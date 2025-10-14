@@ -2,18 +2,16 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
-import { getPlaylists, addTracksToPlaylist } from './localPlaylists';
 import "./App.css";
 
 function AlbumView() {
   const location = useLocation();
   const navigate = useNavigate();
   const album = location.state?.album;
-  const { addAlbumToQueue, clearQueue, playTrackFromQueue, addTrackToQueue, queue } = useMusicQueue();
+  const { addAlbumToQueue, clearQueue, playTrackFromQueue, addTrackToQueue, clearAndPlayTrack, clearAndPlayPlaylist, queue } = useMusicQueue();
   
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [customPlaylists, setCustomPlaylists] = useState([]);
 
   useEffect(() => {
     if (!album) {
@@ -40,20 +38,21 @@ function AlbumView() {
         console.error("Error fetching album tracks:", err);
         setLoading(false);
       });
-    try { setCustomPlaylists(getPlaylists()); } catch (_) {}
   }, [album, navigate]);
 
-  const playTrack = (track, index = 0) => {
+  const playTrack = (track) => {
+    if (!track) return;
+    
     // Ensure the queued item contains album metadata for artwork
     const trackWithAlbum = { ...track, album };
 
-    // Compute target index as current queue length before appending
-    const targetIndex = queue.length;
-    addTrackToQueue(trackWithAlbum);
-
-    // Set the current track index to the newly queued track and go to playback
-    playTrackFromQueue(targetIndex);
-    navigate('/playback');
+    // Clear queue and play this track atomically
+    clearAndPlayTrack(trackWithAlbum);
+    
+    // Navigate to playback page if not already there
+    if (window.location.pathname !== '/playback') {
+      navigate('/playback');
+    }
   };
 
   const playAlbum = () => {
@@ -63,18 +62,15 @@ function AlbumView() {
       album: album,
     }));
     
-    clearQueue();
-    addAlbumToQueue(tracksWithAlbum, 0);
-    navigate('/playback');
-    playTrackFromQueue(0);
+    // Clear queue and play entire album atomically
+    clearAndPlayPlaylist(tracksWithAlbum, 0);
+    
+    // Navigate to playback page if not already there
+    if (window.location.pathname !== '/playback') {
+      navigate('/playback');
+    }
   };
 
-  const addAlbumToCustom = (pid) => {
-    if (!pid) return;
-    const tracksWithAlbum = tracks.map(t => ({ ...t, album }));
-    addTracksToPlaylist(pid, tracksWithAlbum);
-    alert('Album added to your playlist');
-  };
 
   const formatDuration = (ms) => {
     const minutes = Math.floor(ms / 60000);
@@ -168,14 +164,6 @@ function AlbumView() {
             >
               ▶️ Play Album
             </button>
-            {customPlaylists.length > 0 && (
-              <select onChange={(e) => addAlbumToCustom(e.target.value)} style={{ marginLeft: '12px', background: '#181818', color: '#fff', border: '1px solid #333', borderRadius: '8px', padding: '8px 10px' }} defaultValue="">
-                <option value="" disabled>Add to custom playlist…</option>
-                {customPlaylists.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            )}
           </div>
         </div>
 

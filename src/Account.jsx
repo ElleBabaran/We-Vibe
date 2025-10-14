@@ -6,31 +6,37 @@ import Sidebar from "./Sidebar";
 
 export default function Account() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "********",
-    gender: "",
-    birthDay: "",
-    birthMonth: "",
-    birthYear: "",
-    country: ""
-  });
-
-  useEffect(() => {
+  
+  // Initialize state with localStorage values
+  const [formData, setFormData] = useState(() => {
     try {
       const storedEmail = localStorage.getItem("wv_user_email") || localStorage.getItem("user_email") || "";
       const storedPassword = localStorage.getItem("wv_user_password") || localStorage.getItem("user_password") || "";
-      if (storedEmail) {
-        setFormData(prev => ({ ...prev, email: storedEmail }));
-      }
-      if (storedPassword) {
-        const masked = "*".repeat(storedPassword.length);
-        setFormData(prev => ({ ...prev, password: masked }));
-      }
-
-    } catch (_) {}
-  }, []);
+      const masked = storedPassword ? "*".repeat(storedPassword.length) : "********";
+      
+      return {
+        username: "",
+        email: storedEmail,
+        password: masked,
+        gender: "",
+        birthDay: "",
+        birthMonth: "",
+        birthYear: "",
+        country: ""
+      };
+    } catch {
+      return {
+        username: "",
+        email: "",
+        password: "********",
+        gender: "",
+        birthDay: "",
+        birthMonth: "",
+        birthYear: "",
+        country: ""
+      };
+    }
+  });
 
   // Fetch email from Spotify if missing
   useEffect(() => {

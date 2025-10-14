@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMusicQueue } from './MusicQueueContext';
 
@@ -81,54 +81,156 @@ function MiniPlayer() {
   return (
     <div style={{
       position: 'fixed',
-      left: 0,
+      left: '240px', // Same as sidebar width
       right: 0,
       bottom: 0,
       zIndex: 98,
-      padding: '10px 16px',
-      background: 'rgba(24,24,24,0.95)',
-      borderTop: '1px solid #333',
+      padding: '12px 24px',
+      background: 'linear-gradient(135deg, rgba(17, 17, 17, 0.98), rgba(26, 26, 26, 0.95))',
+      backdropFilter: 'blur(20px)',
+      borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+      borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
+      borderRadius: '16px 0 0 0',
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'space-between'
+      justifyContent: 'space-between',
+      boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.3)',
+      transition: 'all 0.3s ease'
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: 0, flex: 1 }}>
         {currentTrack.album?.images?.[0]?.url && (
-          <img src={currentTrack.album.images[0].url} alt={currentTrack.name} style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover' }} />
+          <img 
+            src={currentTrack.album.images[0].url} 
+            alt={currentTrack.name} 
+            style={{ 
+              width: 56, 
+              height: 56, 
+              borderRadius: 8, 
+              objectFit: 'cover',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+            }} 
+          />
         )}
-        <div style={{ minWidth: 0 }}>
-          <div style={{ color: '#fff', fontWeight: '600', fontSize: '0.95rem', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: 280 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ 
+            color: '#fff', 
+            fontWeight: '700', 
+            fontSize: '1rem', 
+            fontFamily: 'Plus Jakarta Sans, system-ui',
+            overflow: 'hidden', 
+            whiteSpace: 'nowrap', 
+            textOverflow: 'ellipsis', 
+            maxWidth: 320,
+            marginBottom: '2px'
+          }}>
             {currentTrack.name}
           </div>
-          <div style={{ color: '#b3b3b3', fontSize: '0.85rem', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: 280 }}>
+          <div style={{ 
+            color: '#b3b3b3', 
+            fontSize: '0.9rem', 
+            fontWeight: '500',
+            overflow: 'hidden', 
+            whiteSpace: 'nowrap', 
+            textOverflow: 'ellipsis', 
+            maxWidth: 320
+          }}>
             {currentTrack.artists?.map(a => a.name).join(', ')}
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={prev} style={{
-          width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#2a2a2a', color: '#fff', cursor: 'pointer'
-        }}>
-          ◀
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flex: 1 }}>
+        <button 
+          onClick={prev} 
+          onMouseEnter={(e) => {
+            e.target.style.background = 'rgba(255, 255, 255, 0.2)';
+            e.target.style.transform = 'scale(1.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+            e.target.style.transform = 'scale(1)';
+          }}
+          style={{
+            width: 40, 
+            height: 40, 
+            borderRadius: '50%', 
+            border: 'none', 
+            background: 'rgba(255, 255, 255, 0.1)', 
+            color: '#fff', 
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '14px',
+            backdropFilter: 'blur(5px)'
+          }}>
+          ⏮
         </button>
-        <button onClick={togglePlayPause} style={{
-          width: 44, height: 44, borderRadius: '50%', border: 'none', background: '#1DB954', color: '#fff', cursor: 'pointer', fontWeight: 700
-        }}>
-          {isPlaying ? 'II' : '▶'}
+        <button 
+          onClick={togglePlayPause} 
+          onMouseEnter={(e) => {
+            e.target.style.transform = 'scale(1.08)';
+            e.target.style.boxShadow = '0 6px 16px rgba(29, 185, 84, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.transform = 'scale(1)';
+            e.target.style.boxShadow = '0 4px 12px rgba(29, 185, 84, 0.3)';
+          }}
+          style={{
+            width: 48, 
+            height: 48, 
+            borderRadius: '50%', 
+            border: 'none', 
+            background: 'linear-gradient(135deg, #1DB954, #1ed760)', 
+            color: '#fff', 
+            cursor: 'pointer', 
+            fontWeight: 700,
+            transition: 'all 0.2s ease',
+            boxShadow: '0 4px 12px rgba(29, 185, 84, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '16px'
+          }}>
+          {isPlaying ? '⏸' : '▶'}
         </button>
-        <button onClick={next} style={{
-          width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#2a2a2a', color: '#fff', cursor: 'pointer'
-        }}>
-          ▶
+        <button 
+          onClick={next} 
+          onMouseEnter={(e) => {
+            e.target.style.background = 'rgba(255, 255, 255, 0.2)';
+            e.target.style.transform = 'scale(1.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+            e.target.style.transform = 'scale(1)';
+          }}
+          style={{
+            width: 40, 
+            height: 40, 
+            borderRadius: '50%', 
+            border: 'none', 
+            background: 'rgba(255, 255, 255, 0.1)', 
+            color: '#fff', 
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '14px',
+            backdropFilter: 'blur(5px)'
+          }}>
+          ⏭
         </button>
       </div>
 
-      <button onClick={() => navigate('/playback')} style={{
-        border: 'none', background: 'transparent', color: '#b3b3b3', cursor: 'pointer', fontWeight: 600
-      }}>
-        Open Player
-      </button>
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={() => navigate('/playback')} style={{
+          border: 'none', background: 'transparent', color: '#b3b3b3', cursor: 'pointer', fontWeight: 600
+        }}>
+          Open Player
+        </button>
+      </div>
     </div>
   );
 }

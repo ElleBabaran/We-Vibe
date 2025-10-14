@@ -4,14 +4,23 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
+import { getPlaylists, addTrackToPlaylist } from './localPlaylists';
 
 export default function Browse() {
   const navigate = useNavigate();
-  const { addTrackToQueue, playTrackFromQueue, queue } = useMusicQueue();
+  const { addTrackToQueue, playTrackFromQueue, clearQueue, clearAndPlayTrack, queue } = useMusicQueue();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [customPlaylists, setCustomPlaylists] = useState([]);
+
+  // Load custom playlists
+  useEffect(() => {
+    try {
+      setCustomPlaylists(getPlaylists());
+    } catch (_) {}
+  }, []);
 
   // Real-time search as user types
   useEffect(() => {
@@ -71,10 +80,22 @@ export default function Browse() {
 
   const playTrack = (track) => {
     if (!track) return;
-    const targetIndex = queue.length;
-    addTrackToQueue(track);
-    playTrackFromQueue(targetIndex);
-    navigate('/playback');
+    
+    console.log('🎵 Browse: playTrack called with:', track.name, track.uri);
+    
+    // Clear queue and play this track atomically
+    clearAndPlayTrack(track);
+    
+    // Navigate to playback page if not already there
+    if (window.location.pathname !== '/playback') {
+      navigate('/playback');
+    }
+  };
+
+  const addToCustomPlaylist = (track, playlistId) => {
+    if (!playlistId || !track) return;
+    addTrackToPlaylist(playlistId, track);
+    alert('Added to your playlist!');
   };
 
   const viewAlbum = (album) => {
@@ -88,12 +109,13 @@ export default function Browse() {
   };
 
   return (
-    <div className="home-container">
+    <>
       <Sidebar />
       
       <div className={`browse-container ${hasSearched ? 'with-results' : ''}`}>
         <div className="browse-header">
           <h1 className="browse-title">WeVibe!</h1>
+          <p className="browse-tagline">Discover your perfect musical journey</p>
         </div>
         
         <div className="browse-search-wrapper">
@@ -130,7 +152,7 @@ export default function Browse() {
                         <div
                           key={track.id}
                           className="result-item track-item"
-                          onClick={() => playTrack(track)}
+                          style={{ position: 'relative' }}
                         >
                           {track.album?.images?.[0]?.url && (
                             <img
@@ -139,7 +161,7 @@ export default function Browse() {
                               className="result-image"
                             />
                           )}
-                          <div className="result-info">
+                          <div className="result-info" onClick={() => playTrack(track)} style={{ cursor: 'pointer', flex: 1 }}>
                             <p className="result-name">{track.name}</p>
                             <p className="result-artist">
                               {track.artists?.map(a => a.name).join(', ')}
@@ -148,6 +170,51 @@ export default function Browse() {
                               {formatDuration(track.duration_ms)}
                             </p>
                           </div>
+                          
+                          {/* Add to Playlist Dropdown */}
+                          {customPlaylists.length > 0 && (
+                            <div style={{ marginLeft: '12px', display: 'flex', alignItems: 'center' }}>
+                              <select
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    addToCustomPlaylist(track, e.target.value);
+                                    e.target.value = ''; // Reset selection
+                                  }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  padding: '8px 12px',
+                                  background: 'linear-gradient(135deg, #1DB954 0%, #1ed760 100%)',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '8px',
+                                  fontSize: '0.9rem',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer',
+                                  outline: 'none',
+                                  minWidth: '120px',
+                                  boxShadow: '0 2px 8px rgba(29, 185, 84, 0.3)',
+                                  transition: 'all 0.2s'
+                                }}
+                                defaultValue=""
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.transform = 'scale(1.05)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.transform = 'scale(1)';
+                                }}
+                              >
+                                <option value="" disabled style={{ background: '#282828', color: '#b3b3b3' }}>
+                                  Add to playlist...
+                                </option>
+                                {customPlaylists.map(p => (
+                                  <option key={p.id} value={p.id} style={{ background: '#282828', color: '#fff' }}>
+                                    {p.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -225,6 +292,6 @@ export default function Browse() {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

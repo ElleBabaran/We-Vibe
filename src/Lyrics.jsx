@@ -8,40 +8,44 @@ function Lyrics({ track }) {
   useEffect(() => {
     if (!track) return;
     
-    setLoading(true);
-    setError(null);
-    
-    // Mock lyrics for demonstration - in a real app, you'd use a lyrics API
-    const mockLyrics = [
-      "This is the first line of the song",
-      "And this is the second line",
-      "The melody flows through the night",
-      "Like stars in the sky so bright",
-      "",
-      "Chorus:",
-      "We're dancing in the moonlight",
-      "Everything feels so right",
-      "In this moment, we're free",
-      "Just you and me",
-      "",
-      "Verse 2:",
-      "The rhythm takes us higher",
-      "Setting our hearts on fire",
-      "No need to understand",
-      "Just take my hand",
-      "",
-      "Chorus:",
-      "We're dancing in the moonlight",
-      "Everything feels so right",
-      "In this moment, we're free",
-      "Just you and me"
-    ];
-    
-    // Simulate API call delay
-    setTimeout(() => {
+    const loadLyrics = async () => {
+      setLoading(true);
+      setError(null);
+      
+      // Mock lyrics for demonstration - in a real app, you'd use a lyrics API
+      const mockLyrics = [
+        "This is the first line of the song",
+        "And this is the second line",
+        "The melody flows through the night",
+        "Like stars in the sky so bright",
+        "",
+        "Chorus:",
+        "We're dancing in the moonlight",
+        "Everything feels so right",
+        "In this moment, we're free",
+        "Just you and me",
+        "",
+        "Verse 2:",
+        "The rhythm takes us higher",
+        "Setting our hearts on fire",
+        "No need to understand",
+        "Just take my hand",
+        "",
+        "Chorus:",
+        "We're dancing in the moonlight",
+        "Everything feels so right",
+        "In this moment, we're free",
+        "Just you and me"
+      ];
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       setLyrics(mockLyrics);
       setLoading(false);
-    }, 1000);
+    };
+    
+    loadLyrics();
   }, [track]);
 
   if (!track) {

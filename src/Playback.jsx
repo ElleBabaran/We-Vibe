@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
 import "./App.css";
-import { getPlaylists, addTrackToPlaylist as addToCustom } from './localPlaylists';
 
 function Playback() {
   const location = useLocation();
@@ -19,7 +18,8 @@ function Playback() {
     playPrevious,
     removeTrackFromQueue,
     addTrackToQueue,
-    playTrackFromQueue
+    playTrackFromQueue,
+    clearAndPlayTrack
   } = useMusicQueue();
 
   const [player, setPlayer] = useState(null);
@@ -30,7 +30,6 @@ function Playback() {
   const [durationMs, setDurationMs] = useState(0);
   const [isLooping, setIsLooping] = useState(false);
   const [sortMode, setSortMode] = useState("queue"); // queue | mostPlayed | az
-  const [customPlaylists, setCustomPlaylists] = useState([]);
 
   // Small utility to wait between retries
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -93,7 +92,22 @@ function Playback() {
         // Listen for track changes
         player.addListener("player_state_changed", (state) => {
           if (!state) return;
-          setIsPlaying(!state.paused);
+          
+          const currentlyPlaying = !state.paused;
+          console.log('🎵 Player state changed:', { 
+            paused: state.paused, 
+            trackName: state.track_window?.current_track?.name 
+          });
+          
+          // Only update isPlaying if it's different to avoid loops
+          setIsPlaying(prev => {
+            if (prev !== currentlyPlaying) {
+              console.log('🎵 Updating isPlaying from', prev, 'to', currentlyPlaying);
+              return currentlyPlaying;
+            }
+            return prev;
+          });
+          
           if (typeof state.position === "number") setPositionMs(state.position);
           if (typeof state.duration === "number") setDurationMs(state.duration);
         });
@@ -123,7 +137,6 @@ function Playback() {
     
     // Fetch fallback tracks when no queue exists
     fetchFallbackTracks(token);
-    try { setCustomPlaylists(getPlaylists()); } catch (_) {}
   }, [navigate]);
 
   const fetchFallbackTracks = async (token) => {
@@ -141,9 +154,43 @@ function Playback() {
 
   // Update current track when queue changes
   useEffect(() => {
-    const track = getCurrentTrack();
-      setCurrentTrack(track);
-  }, [getCurrentTrack, currentTrackIndex]);
+    const track = queue[currentTrackIndex] || null;
+    setCurrentTrack(track);
+  }, [queue, currentTrackIndex]);
+  
+  // Handle playback - start when track and isPlaying are both true
+  useEffect(() => {
+    console.log('🎵 Playback useEffect triggered:', {
+      hasDevice: !!deviceId,
+      hasTrack: !!currentTrack,
+      isPlaying: isPlaying,
+      hasPlayer: !!player,
+      trackUri: currentTrack?.uri
+    });
+    
+    if (deviceId && currentTrack && isPlaying && player && currentTrack.uri) {
+      console.log('▶️ Starting playback:', currentTrack.name);
+      
+      const playTrack = async () => {
+        try {
+          await startPlayback(currentTrack);
+        } catch (error) {
+          console.error('Playback failed:', error);
+        }
+      };
+      
+      // Add a small delay to ensure all state updates are processed
+      const timer = setTimeout(() => {
+        playTrack();
+      }, 200);
+      
+      return () => clearTimeout(timer);
+    } else if (deviceId && currentTrack && !isPlaying && player) {
+      // If isPlaying is false, pause the player
+      console.log('⏸️ Pausing playback');
+      player.pause?.().catch(err => console.warn('Pause failed:', err));
+    }
+  }, [currentTrack, isPlaying, deviceId, player]);
 
   // Smooth progress polling
   useEffect(() => {
@@ -165,13 +212,32 @@ function Playback() {
   // Function to start playback on our player device
   const startPlayback = async (trackToPlay = currentTrack) => {
     const token = localStorage.getItem("spotify_access_token");
+    console.log('🎵 startPlayback called with:', {
+      trackName: trackToPlay?.name,
+      trackUri: trackToPlay?.uri,
+      deviceId: !!deviceId,
+      hasToken: !!token
+    });
+    
     if (!deviceId || !trackToPlay?.uri) {
-      console.log("Missing deviceId or track URI:", { deviceId, trackUri: trackToPlay?.uri });
+      console.log("❌ Missing deviceId or track URI:", { deviceId, trackUri: trackToPlay?.uri });
       return;
     }
 
     try {
-      console.log("Starting playback for track:", trackToPlay.name);
+      console.log("🎵 Starting playback for track:", trackToPlay.name);
+      
+      // First, ensure any current playback is stopped
+      try {
+        await fetch(`https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        // Wait a moment for the pause to take effect
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (e) {
+        console.warn('Failed to pause current playback:', e);
+      }
       // increment play count
       try {
         const countsRaw = localStorage.getItem("wv_play_counts");
@@ -247,22 +313,20 @@ function Playback() {
         }
       }
 
-      // Give the SDK a moment and verify it actually started; if not, retry a couple times
-      for (let attempt = 0; attempt < 2; attempt++) {
-        await sleep(400);
-        try {
-          const state = await player.getCurrentState?.();
-          if (state && !state.paused) {
-            setIsPlaying(true);
-            return;
-          }
-        } catch (_) {}
-
-        // Nudge with toggle if still paused
-        try { await player.togglePlay?.(); } catch (_) {}
+      // Give the SDK a moment and verify it actually started
+      await sleep(500);
+      try {
+        const state = await player.getCurrentState?.();
+        if (state && !state.paused) {
+          console.log('✅ Playback successfully started');
+          return;
+        } else {
+          console.log('⚠️ Playback might not have started, attempting toggle');
+          await player.togglePlay?.();
+        }
+      } catch (e) {
+        console.warn('Failed to verify playback state:', e);
       }
-
-      setIsPlaying(true);
     } catch (error) {
       console.error("Error starting playback:", error);
     }
@@ -311,27 +375,31 @@ function Playback() {
   };
 
   const handleNext = async () => {
-    if (player?.nextTrack) {
-      try {
-        await player.nextTrack();
-        return;
-      } catch (e) {
-        console.warn("SDK nextTrack failed, falling back", e);
+    // Skip SDK and use our queue directly for more reliable behavior
+    if (currentTrackIndex < queue.length - 1) {
+      const nextIndex = currentTrackIndex + 1;
+      const nextTrack = queue[nextIndex];
+      
+      if (nextTrack) {
+        playNext(); // Update the context state
+        setCurrentTrack(nextTrack); // Update local state immediately
+        await startPlayback(nextTrack); // Start playing the new track
       }
     }
-      playNext();
   };
 
   const handlePrevious = async () => {
-    if (player?.previousTrack) {
-      try {
-        await player.previousTrack();
-        return;
-      } catch (e) {
-        console.warn("SDK previousTrack failed, falling back", e);
+    // Skip SDK and use our queue directly for more reliable behavior
+    if (currentTrackIndex > 0) {
+      const prevIndex = currentTrackIndex - 1;
+      const prevTrack = queue[prevIndex];
+      
+      if (prevTrack) {
+        playPrevious(); // Update the context state
+        setCurrentTrack(prevTrack); // Update local state immediately
+        await startPlayback(prevTrack); // Start playing the new track
       }
     }
-    playPrevious();
   };
 
   const toggleLoop = async () => {
@@ -357,17 +425,24 @@ function Playback() {
     return `${minutes}:${seconds.padStart(2, "0")}`;
   };
 
-  // Once player is ready, start playing the current track from the queue
-  useEffect(() => {
-    if (deviceId && currentTrack) {
-      startPlayback();
-    }
-  }, [deviceId, currentTrack]);
 
-  // Get tracks to display: show actual queue from current index, otherwise fall back
-  const queuedFromCurrent = queue.slice(currentTrackIndex + 1, currentTrackIndex + 1 + 25);
-  const baseTracks = queuedFromCurrent.length > 0 ? queuedFromCurrent : fallbackTracks;
-  let displayTracks = baseTracks;
+  // Get tracks to display: prioritize queue, fall back to unique fallback tracks
+  let baseTracks;
+  if (queue.length > 0) {
+    baseTracks = queue;
+  } else {
+    baseTracks = fallbackTracks;
+  }
+  
+  // Remove duplicates based on track ID or URI
+  const uniqueTracks = baseTracks.filter((track, index) => {
+    if (!track) return false;
+    return baseTracks.findIndex(t => 
+      (t?.id && t.id === track?.id) || (t?.uri && t.uri === track?.uri)
+    ) === index;
+  });
+  
+  let displayTracks = uniqueTracks;
   const handleClickUpNext = async (track) => {
     if (!track) return;
     // Try to locate this track in the actual queue by id/uri
@@ -376,23 +451,15 @@ function Playback() {
     );
 
     if (matchIndex >= 0) {
+      // Found in queue - just update the index (useEffect will handle playback)
       playTrackFromQueue(matchIndex);
-      try { await startPlayback(queue[matchIndex]); } catch (_) {}
       return;
     }
 
-    // Not in queue (likely from fallback list). Add and play it.
-    addTrackToQueue(track);
-    const newIndex = queue.length; // index of newly appended item
-    playTrackFromQueue(newIndex);
-    try { await startPlayback(track); } catch (_) {}
+    // Not in queue (likely from fallback list). Clear queue and play it.
+    clearAndPlayTrack(track);
   };
 
-  const addCurrentToCustom = (pid) => {
-    if (!pid || !currentTrack) return;
-    addToCustom(pid, currentTrack);
-    alert('Added to your playlist');
-  };
   try {
     if (sortMode === "az") {
       displayTracks = [...baseTracks].sort((a, b) => (a?.name || "").localeCompare(b?.name || ""));
@@ -703,17 +770,7 @@ function Playback() {
               </button>
             </div>
 
-            {/* Add to custom playlist */}
-            {customPlaylists.length > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
-                <select onChange={(e) => addCurrentToCustom(e.target.value)} style={{ background: '#181818', color: '#fff', border: '1px solid #333', borderRadius: '8px', padding: '6px 8px' }} defaultValue="">
-                  <option value="" disabled>Add current track to…</option>
-                  {customPlaylists.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+
           </div>
 
           {/* Queue Section */}
@@ -756,27 +813,35 @@ function Playback() {
                   No tracks available
                 </p>
               ) : (
-                displayTracks.map((track, index) => (
-                  <div
-                    key={track.id || index}
-                    onClick={() => handleClickUpNext(track)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "16px",
-                      padding: "12px",
-                      backgroundColor: "#181818",
-                      borderRadius: "12px",
-                    cursor: "pointer",
-                      transition: "background-color 0.2s",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.backgroundColor = "#282828")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.backgroundColor = "#181818")
-                    }
-                  >
+                displayTracks.map((track, displayIndex) => {
+                  // Find the actual index of this track in the original queue
+                  const actualIndex = queue.length > 0 ? queue.findIndex(t => 
+                    (t?.id && t.id === track?.id) || (t?.uri && t.uri === track?.uri)
+                  ) : -1;
+                  const isCurrentTrack = actualIndex >= 0 && actualIndex === currentTrackIndex;
+                  
+                  return (
+                    <div
+                      key={track.id || displayIndex}
+                      onClick={() => handleClickUpNext(track)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "16px",
+                        padding: "12px",
+                        backgroundColor: isCurrentTrack ? "#1DB954" : "#181818",
+                        borderRadius: "12px",
+                        cursor: "pointer",
+                        transition: "background-color 0.2s",
+                        opacity: isCurrentTrack ? 0.9 : 1,
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.backgroundColor = isCurrentTrack ? "#1ed760" : "#282828")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.backgroundColor = isCurrentTrack ? "#1DB954" : "#181818")
+                      }
+                    >
                     {track.album?.images?.[0]?.url ? (
                       <img
                         src={track.album.images[0].url}
@@ -796,11 +861,11 @@ function Playback() {
                       height: "56px",
                       borderRadius: "8px",
                       background: `linear-gradient(135deg, 
-                        ${index === 0
+                        ${displayIndex === 0
                           ? "#7c9fff, #a8b8ff"
-                          : index === 1
+                          : displayIndex === 1
                           ? "#d896ff, #f0a8ff"
-                          : index === 2
+                          : displayIndex === 2
                           ? "#b8a8ff, #d8c0ff"
                           : "#ffa8c8, #ffc0d8"})`,
                       flexShrink: 0,
@@ -834,8 +899,9 @@ function Playback() {
                         {track.artists?.map(a => a.name).join(', ')}
                     </p>
                   </div>
-                </div>
-                ))
+                    </div>
+                  );
+                })
               )}
             </div>
 
