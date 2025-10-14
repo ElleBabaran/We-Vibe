@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 const MusicQueueContext = createContext();
 
@@ -14,6 +14,26 @@ export const MusicQueueProvider = ({ children }) => {
   const [queue, setQueue] = useState([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  // Active Spotify Web Playback SDK device id shared app-wide
+  const [activeDeviceId, setActiveDeviceId] = useState(null);
+
+  // Restore persisted device id if available so controls work before Playback loads
+  useEffect(() => {
+    try {
+      const savedId = localStorage.getItem('wv_device_id');
+      if (savedId) setActiveDeviceId(savedId);
+    } catch (_) {}
+  }, []);
+
+  // Ensure track has a valid Spotify URI; fallback to id if present
+  const ensureTrackUri = (track) => {
+    if (!track) return null;
+    if (track.uri) return track;
+    if (track.id) {
+      return { ...track, uri: `spotify:track:${track.id}` };
+    }
+    return null;
+  };
 
   // Add a single track to the queue
   const addTrackToQueue = useCallback((track) => {
@@ -114,9 +134,11 @@ export const MusicQueueProvider = ({ children }) => {
 
   // Clear queue and play a single track atomically
   const clearAndPlayTrack = useCallback((track) => {
-    console.log('🎵 clearAndPlayTrack called with:', track.name);
+    const prepared = ensureTrackUri(track);
+    if (!prepared?.uri) return;
+    console.log('🎵 clearAndPlayTrack called with:', prepared.name);
     setIsPlaying(false); // Stop current playback first
-    setQueue([track]);
+    setQueue([prepared]);
     setCurrentTrackIndex(0);
     // Use setTimeout to ensure state updates are processed
     setTimeout(() => {
@@ -127,10 +149,25 @@ export const MusicQueueProvider = ({ children }) => {
   // Clear queue and play multiple tracks atomically
   const clearAndPlayPlaylist = useCallback((tracks, startIndex = 0) => {
     if (!tracks || tracks.length === 0) return;
-    console.log('🎵 clearAndPlayPlaylist called with', tracks.length, 'tracks, starting at index', startIndex);
+    // Prepare list: ensure URIs, drop invalid, de-duplicate by URI
+    const preparedList = tracks
+      .filter(Boolean)
+      .map(ensureTrackUri)
+      .filter(t => t && t.uri);
+    const seen = new Set();
+    const deduped = preparedList.filter(t => {
+      if (seen.has(t.uri)) return false;
+      seen.add(t.uri);
+      return true;
+    });
+
+    if (deduped.length === 0) return;
+
+    const safeIndex = Math.max(0, Math.min(startIndex, deduped.length - 1));
+    console.log('🎵 clearAndPlayPlaylist called with', deduped.length, 'tracks, starting at index', safeIndex);
     setIsPlaying(false); // Stop current playback first
-    setQueue(tracks);
-    setCurrentTrackIndex(startIndex);
+    setQueue(deduped);
+    setCurrentTrackIndex(safeIndex);
     // Use setTimeout to ensure state updates are processed
     setTimeout(() => {
       setIsPlaying(true);
@@ -142,6 +179,8 @@ export const MusicQueueProvider = ({ children }) => {
     currentTrackIndex,
     isPlaying,
     setIsPlaying,
+    activeDeviceId,
+    setActiveDeviceId,
     addTrackToQueue,
     addTracksToQueue,
     addAlbumToQueue,

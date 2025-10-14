@@ -19,7 +19,9 @@ function Playback() {
     removeTrackFromQueue,
     addTrackToQueue,
     playTrackFromQueue,
-    clearAndPlayTrack
+    clearAndPlayTrack,
+    activeDeviceId,
+    setActiveDeviceId
   } = useMusicQueue();
 
   const [player, setPlayer] = useState(null);
@@ -54,6 +56,10 @@ function Playback() {
         player.addListener("ready", async ({ device_id }) => {
           console.log("Spotify Player ready with Device ID:", device_id);
           setDeviceId(device_id);
+          setActiveDeviceId(device_id);
+          try {
+            localStorage.setItem("wv_device_id", device_id);
+          } catch (_) {}
           setPlayer(player);
 
           // Attempt to transfer playback to this Web Playback SDK device
@@ -74,6 +80,11 @@ function Playback() {
 
         player.addListener("not_ready", ({ device_id }) => {
           console.warn("Device ID has gone offline", device_id);
+          if (deviceId === device_id) {
+            setDeviceId(null);
+            setActiveDeviceId(null);
+            try { localStorage.removeItem("wv_device_id"); } catch (_) {}
+          }
         });
 
         player.addListener("initialization_error", ({ message }) => {
@@ -137,6 +148,15 @@ function Playback() {
     
     // Fetch fallback tracks when no queue exists
     fetchFallbackTracks(token);
+    
+    // Try to restore previous device id (in case SDK was already ready)
+    try {
+      const savedId = localStorage.getItem("wv_device_id");
+      if (savedId) {
+        setDeviceId(savedId);
+        setActiveDeviceId(savedId);
+      }
+    } catch (_) {}
   }, [navigate]);
 
   const fetchFallbackTracks = async (token) => {
@@ -225,6 +245,13 @@ function Playback() {
     }
 
     try {
+      // Ensure audio element is activated in the browser context
+      try {
+        if (player?.activateElement) {
+          await player.activateElement();
+        }
+      } catch (_) {}
+
       console.log("🎵 Starting playback for track:", trackToPlay.name);
       
       // First, ensure any current playback is stopped
@@ -313,20 +340,8 @@ function Playback() {
         }
       }
 
-      // Give the SDK a moment and verify it actually started
-      await sleep(500);
-      try {
-        const state = await player.getCurrentState?.();
-        if (state && !state.paused) {
-          console.log('✅ Playback successfully started');
-          return;
-        } else {
-          console.log('⚠️ Playback might not have started, attempting toggle');
-          await player.togglePlay?.();
-        }
-      } catch (e) {
-        console.warn('Failed to verify playback state:', e);
-      }
+      // Give the SDK a brief moment for state to propagate
+      await sleep(300);
     } catch (error) {
       console.error("Error starting playback:", error);
     }
