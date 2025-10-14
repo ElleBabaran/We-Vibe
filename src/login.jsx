@@ -43,7 +43,11 @@ const SCOPES = [
   "streaming",
   "user-read-playback-state",
   "user-read-currently-playing",
-  "user-modify-playback-state"
+  "user-modify-playback-state",
+  // Required for personalized content
+  "user-top-read",
+  // Optional: liked tracks to seed recommendations
+  "user-library-read"
 ].join(" ");
 
 export default function Login() {
