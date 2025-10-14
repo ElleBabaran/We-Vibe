@@ -17,6 +17,9 @@ function shuffleArray(arr) {
   return copy;
 }
 
+// Feature flag: disable audio-features calls by default (avoids 403 in some environments)
+const USE_AUDIO_FEATURES = false;
+
 const AUDIO_FEATURE_KEYS = [
   "danceability",
   "energy",
@@ -176,17 +179,19 @@ export default function MadeForYou() {
       const seeds = [...seedIds, ...fallbackSaved].slice(0, 5);
       setSeedTrackIds(seeds);
 
-      // 2) Build centroid of user's audio features (best-effort; may fail)
+      // 2) Build centroid of user's audio features (best-effort; may fail). Skipped if disabled
       const tasteIds = [...new Set([...topTracks.map(t => t.id), ...savedTracks.map(t => t.id)])];
       let centroid = null;
-      try {
-        const tasteFeatureMap = await getAudioFeatures(tasteIds);
-        const tasteFeatures = tasteIds
-          .map((id) => tasteFeatureMap[id])
-          .filter(Boolean);
-        centroid = computeCentroid(tasteFeatures);
-      } catch (err) {
-        console.warn('Falling back: audio-features for user taste unavailable:', err?.message || err);
+      if (USE_AUDIO_FEATURES) {
+        try {
+          const tasteFeatureMap = await getAudioFeatures(tasteIds);
+          const tasteFeatures = tasteIds
+            .map((id) => tasteFeatureMap[id])
+            .filter(Boolean);
+          centroid = computeCentroid(tasteFeatures);
+        } catch (err) {
+          console.warn('Falling back: audio-features for user taste unavailable:', err?.message || err);
+        }
       }
 
       // 3) Fetch recommendations
@@ -201,11 +206,13 @@ export default function MadeForYou() {
       // 4) Score recommendations using similarity, with graceful fallback
       const recIds = recTracks.map((t) => t.id);
       let recFeatureMap = {};
-      try {
-        recFeatureMap = await getAudioFeatures(recIds);
-      } catch (err) {
-        console.warn('Falling back: audio-features for recommendations unavailable:', err?.message || err);
-        recFeatureMap = {};
+      if (USE_AUDIO_FEATURES && centroid) {
+        try {
+          recFeatureMap = await getAudioFeatures(recIds);
+        } catch (err) {
+          console.warn('Falling back: audio-features for recommendations unavailable:', err?.message || err);
+          recFeatureMap = {};
+        }
       }
 
       const topTrackIdSet = new Set(topTracks.map(t => t.id));
