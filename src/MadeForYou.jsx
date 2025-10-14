@@ -111,6 +111,11 @@ export default function MadeForYou() {
     });
     if (!res.ok) {
       const body = await res.text();
+      // Soft-handle audio-features 403: return empty payload rather than throw
+      if (url.includes('/audio-features') && res.status === 403) {
+        console.warn('Audio-features forbidden (403). Proceeding without features.');
+        return { audio_features: [] };
+      }
       throw new Error(`HTTP ${res.status} for ${url}: ${body}`);
     }
     return res.json();
@@ -167,73 +172,52 @@ export default function MadeForYou() {
     setLoading(true);
     setError("");
     try {
-      // 1) Gather user taste profile from top/saved tracks and top artists
-      const [topTracks, savedTracks, topArtists] = await Promise.all([
+      // 1) Gather user taste profile from top/saved tracks and top artists, with per-call resilience
+      const [topTracksRes, savedTracksRes, topArtistsRes] = await Promise.allSettled([
         getUserTopTracks(20),
         getUserSavedTracks(20),
         getUserTopArtists(20),
       ]);
 
-      const seedIds = (topTracks ?? []).slice(0, 5).map((t) => t.id);
-      const fallbackSaved = (savedTracks ?? []).slice(0, 5 - seedIds.length).map((t) => t.id);
-      const seeds = [...seedIds, ...fallbackSaved].slice(0, 5);
-      setSeedTrackIds(seeds);
+      const topTracks = topTracksRes.status === 'fulfilled' ? (topTracksRes.value ?? []) : [];
+      const savedTracks = savedTracksRes.status === 'fulfilled' ? (savedTracksRes.value ?? []) : [];
+      const topArtists = topArtistsRes.status === 'fulfilled' ? (topArtistsRes.value ?? []) : [];
 
-      // 2) Build centroid of user's audio features (best-effort; may fail). Skipped if disabled
-      const tasteIds = [...new Set([...topTracks.map(t => t.id), ...savedTracks.map(t => t.id)])];
-      let centroid = null;
-      if (USE_AUDIO_FEATURES) {
-        try {
-          const tasteFeatureMap = await getAudioFeatures(tasteIds);
-          const tasteFeatures = tasteIds
-            .map((id) => tasteFeatureMap[id])
-            .filter(Boolean);
-          centroid = computeCentroid(tasteFeatures);
-        } catch (err) {
-          console.warn('Falling back: audio-features for user taste unavailable:', err?.message || err);
-        }
+      // Build seeds: prefer track seeds, then artist seeds, then genre seeds
+      const trackSeedIds = (topTracks ?? []).slice(0, 5).map((t) => t.id);
+      const fallbackSaved = (savedTracks ?? []).slice(0, Math.max(0, 5 - trackSeedIds.length)).map((t) => t.id);
+      const seedsTracks = [...trackSeedIds, ...fallbackSaved].slice(0, 5);
+      const seedsArtists = (topArtists ?? []).slice(0, 5).map(a => a.id);
+
+      // Expose seed IDs for UI hinting
+      setSeedTrackIds(seedsTracks);
+
+      // 2) Fetch recommendations using whatever seeds are available
+      const params = new URLSearchParams({ limit: String(targetLimit), market: 'from_token' });
+      if (seedsTracks.length > 0) {
+        params.set('seed_tracks', seedsTracks.join(','));
+      } else if (seedsArtists.length > 0) {
+        params.set('seed_artists', seedsArtists.join(','));
+      } else {
+        // Fallback to genre seeds that are broadly available
+        params.set('seed_genres', 'pop,rock,hip-hop');
       }
-
-      // 3) Fetch recommendations
-      const params = new URLSearchParams({
-        limit: String(targetLimit),
-        seed_tracks: seeds.join(","),
-        market: "from_token",
-      });
       const recData = await fetchJson(`https://api.spotify.com/v1/recommendations?${params.toString()}`);
       const recTracks = recData.tracks ?? [];
 
-      // 4) Score recommendations using similarity, with graceful fallback
-      const recIds = recTracks.map((t) => t.id);
-      let recFeatureMap = {};
-      if (USE_AUDIO_FEATURES && centroid) {
-        try {
-          recFeatureMap = await getAudioFeatures(recIds);
-        } catch (err) {
-          console.warn('Falling back: audio-features for recommendations unavailable:', err?.message || err);
-          recFeatureMap = {};
-        }
-      }
-
+      // 3) Score recommendations using metadata-only fallback (no audio-features)
       const topTrackIdSet = new Set(topTracks.map(t => t.id));
       const savedTrackIdSet = new Set(savedTracks.map(t => t.id));
       const topArtistIdSet = new Set(topArtists.map(a => a.id));
 
       const scored = recTracks.map((track) => {
-        let pct = 0;
-        const f = recFeatureMap[track.id];
-        if (f && centroid) {
-          pct = computeSimilarityPercent(f, centroid);
-        } else {
-          // Fallback: score using artist overlap, track overlap, and popularity
-          const popularity = track.popularity ?? 0; // 0..100
-          const hasTopArtist = (track.artists || []).some(a => topArtistIdSet.has(a.id));
-          const inUserTracks = topTrackIdSet.has(track.id) || savedTrackIdSet.has(track.id);
-          let score = Math.round(popularity * 0.6); // up to 60 from popularity
-          if (hasTopArtist) score += 30;            // +30 if artist is among user's top artists
-          if (inUserTracks) score += 10;            // +10 if the exact track is in user's set
-          pct = clamp(score, 0, 100);
-        }
+        const popularity = track.popularity ?? 0; // 0..100
+        const hasTopArtist = (track.artists || []).some(a => topArtistIdSet.has(a.id));
+        const inUserTracks = topTrackIdSet.has(track.id) || savedTrackIdSet.has(track.id);
+        let score = Math.round(popularity * 0.6); // up to 60 from popularity
+        if (hasTopArtist) score += 30;            // +30 if artist is among user's top artists
+        if (inUserTracks) score += 10;            // +10 if the exact track is in user's set
+        const pct = clamp(score, 0, 100);
         return { ...track, recommendationScore: pct };
       });
 
@@ -241,8 +225,14 @@ export default function MadeForYou() {
       scored.sort((a, b) => (b.recommendationScore || 0) - (a.recommendationScore || 0));
       setRecs(scored);
     } catch (e) {
-      console.error(e);
-      setError(e.message || "Failed to load recommendations");
+      const msg = String(e?.message || e || "");
+      if (msg.includes('/audio-features') || msg.includes('HTTP 403')) {
+        console.warn('Proceeding with fallback after API error:', msg);
+        setError("");
+      } else {
+        console.error(e);
+        setError("Failed to load recommendations. Please refresh or re-login.");
+      }
     } finally {
       setLoading(false);
     }
