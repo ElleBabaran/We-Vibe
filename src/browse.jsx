@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
+import { getPlaylists as getLocalPlaylists, addTrackToPlaylist as addTrackToLocal } from './localPlaylists';
 
 export default function Browse() {
   const navigate = useNavigate();
@@ -12,6 +13,8 @@ export default function Browse() {
   const [searchResults, setSearchResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [localPlaylists, setLocalPlaylists] = useState([]);
+  const [selectedByTrack, setSelectedByTrack] = useState({});
 
   // Real-time search as user types
   useEffect(() => {
@@ -27,6 +30,15 @@ export default function Browse() {
 
     return () => clearTimeout(delaySearch);
   }, [searchQuery]);
+
+  useEffect(() => {
+    // Load local playlists for add-to flow
+    try {
+      setLocalPlaylists(getLocalPlaylists());
+    } catch (_) {
+      setLocalPlaylists([]);
+    }
+  }, []);
 
   const performSearch = async (query) => {
     if (!query.trim()) return;
@@ -147,6 +159,50 @@ export default function Browse() {
                             <p className="result-duration">
                               {formatDuration(track.duration_ms)}
                             </p>
+                            {/* Add to local playlist controls */}
+                            {localPlaylists.length > 0 && (
+                              <div
+                                style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center' }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <select
+                                  value={selectedByTrack[track.id] || ''}
+                                  onChange={(e) => setSelectedByTrack(prev => ({ ...prev, [track.id]: e.target.value }))}
+                                  style={{
+                                    backgroundColor: '#181818',
+                                    color: '#fff',
+                                    border: '1px solid #282828',
+                                    borderRadius: '6px',
+                                    padding: '6px 8px',
+                                  }}
+                                >
+                                  <option value="">Add to local...</option>
+                                  {localPlaylists.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const pid = selectedByTrack[track.id];
+                                    if (!pid) return;
+                                    addTrackToLocal(pid, track);
+                                    alert('Added to your playlist');
+                                  }}
+                                  style={{
+                                    padding: '6px 10px',
+                                    backgroundColor: '#7B68EE',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: '14px',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  Add
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
-import { getPlaylists, createPlaylist as lpCreate, addTrackToPlaylist, addTracksToPlaylist, moveTrack, getPlaylist, updatePlaylistCover } from './localPlaylists';
+import { getPlaylists, createPlaylist as lpCreate, addTrackToPlaylist, addTracksToPlaylist, moveTrack, getPlaylist, updatePlaylistCover, removeTrack, deletePlaylist } from './localPlaylists';
 import "./App.css";
 
 function Playlist() {
@@ -20,6 +20,12 @@ function Playlist() {
   const [newPlaylistCoverImage, setNewPlaylistCoverImage] = useState('');
   const [customPlaylists, setCustomPlaylists] = useState([]);
   const [selectedCustomId, setSelectedCustomId] = useState('');
+  const [headerImageUrl, setHeaderImageUrl] = useState(playlist?.images?.[0]?.url || '');
+  const coverInputId = playlist ? `cover-file-${playlist.id}` : 'cover-file';
+
+  useEffect(() => {
+    setHeaderImageUrl(playlist?.images?.[0]?.url || '');
+  }, [playlist]);
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -86,6 +92,20 @@ function Playlist() {
     addTrackToQueue(track);
     navigate('/playback');
     playTrackFromQueue(queue.length); // Play the newly added track
+  };
+
+  const handleCoverFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !playlist?.id?.startsWith('local_')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      if (typeof dataUrl === 'string') {
+        updatePlaylistCover(playlist.id, dataUrl);
+        setHeaderImageUrl(dataUrl);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const playPlaylist = () => {
@@ -184,51 +204,7 @@ function Playlist() {
     return `${minutes}:${seconds.padStart(2, '0')}`;
   };
 
-  if (!playlist && !showCreateForm) {
-    return (
-      <div className="home-container">
-        <Sidebar />
-        
-        <div className="home-content">
-          <div style={{ textAlign: 'center', padding: '40px' }}>
-            <h1 style={{ fontSize: '2.5rem', marginBottom: '20px', color: '#fff' }}>
-              🎵 Playlists
-            </h1>
-            <p style={{ color: '#b3b3b3', marginBottom: '30px', fontSize: '1.1rem' }}>
-              Create and manage your playlists
-            </p>
-            
-            <button
-              onClick={() => setShowCreateForm(true)}
-              style={{
-                padding: '16px 32px',
-                backgroundColor: '#1DB954',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '24px',
-                fontSize: '1.1rem',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: '0 4px 12px rgba(29, 185, 84, 0.3)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#1ed760';
-                e.currentTarget.style.transform = 'scale(1.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#1DB954';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            >
-              ➕ Create New Playlist
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // When creating, show dedicated form screen
   if (showCreateForm) {
     return (
       <div className="home-container">
@@ -381,11 +357,46 @@ function Playlist() {
     );
   }
 
+  // else: fall through to main screen
+
   return (
     <div className="home-container">
       <Sidebar />
       
       <div className="home-content">
+        {/* Header + Create button */}
+        <div style={{ textAlign: 'center', padding: '10px 20px 30px' }}>
+          <h1 style={{ fontSize: '2.2rem', marginBottom: '10px', color: '#fff' }}>🎵 Playlists</h1>
+          <p style={{ color: '#b3b3b3', marginBottom: '18px', fontSize: '1rem' }}>
+            Create and manage your playlists
+          </p>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: '#1DB954',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '24px',
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 4px 12px rgba(29, 185, 84, 0.3)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#1ed760';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#1DB954';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            ➕ Create New Playlist
+          </button>
+        </div>
+
         {/* Spotify Playlists */}
         <div style={{ marginBottom: '30px' }}>
           <h2 style={{ fontSize: '1.8rem', marginBottom: '12px', color: '#fff' }}>Your Spotify Playlists</h2>
@@ -429,7 +440,8 @@ function Playlist() {
           )}
         </div>
 
-        {/* Playlist Header */}
+        {/* Playlist Header (only when a playlist is selected) */}
+        {playlist && (
         <div style={{
           display: 'flex',
           alignItems: 'flex-end',
@@ -439,9 +451,9 @@ function Playlist() {
           background: 'linear-gradient(180deg, #282828 0%, #121212 100%)',
           borderRadius: '8px',
         }}>
-          {playlist.images?.[0]?.url && (
+          {headerImageUrl && (
             <img
-              src={playlist.images[0].url}
+              src={headerImageUrl}
               alt={playlist.name}
               style={{
                 width: '232px',
@@ -512,8 +524,10 @@ function Playlist() {
             </button>
           </div>
         </div>
+        )}
 
-        {/* Back Button */}
+        {/* Back Button & local actions (only when a playlist is selected) */}
+        {playlist && (
         <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', alignItems: 'center' }}>
           <button
             onClick={() => navigate(-1)}
@@ -566,10 +580,82 @@ function Playlist() {
               ➕ Add Songs
             </button>
           )}
-        </div>
 
-        {/* Track List */}
-        {loading ? (
+          {playlist.id.startsWith('local_') && (
+            <>
+              <input
+                id={coverInputId}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleCoverFileChange}
+              />
+              <button
+                onClick={() => {
+                  const input = document.getElementById(coverInputId);
+                  if (input) input.click();
+                }}
+                style={{
+                  padding: '10px 24px',
+                  backgroundColor: 'transparent',
+                  color: '#b3b3b3',
+                  border: '2px solid #b3b3b3',
+                  borderRadius: '20px',
+                  fontSize: '0.9rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#fff';
+                  e.currentTarget.style.borderColor = '#fff';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#b3b3b3';
+                  e.currentTarget.style.borderColor = '#b3b3b3';
+                }}
+              >
+                🖼️ Upload Cover
+              </button>
+
+              <button
+                onClick={() => {
+                  if (confirm('Delete this playlist? This cannot be undone.')) {
+                    deletePlaylist(playlist.id);
+                    setCustomPlaylists(prev => prev.filter(p => p.id !== playlist.id));
+                    alert('Playlist deleted');
+                    navigate('/playlist');
+                  }
+                }}
+                style={{
+                  padding: '10px 24px',
+                  backgroundColor: '#d9534f',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '20px',
+                  fontSize: '0.9rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#c9302c';
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#d9534f';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                🗑️ Delete Playlist
+              </button>
+            </>
+          )}
+        </div>
+        )}
+
+        {/* Track List (only when a playlist is selected) */}
+        {playlist && (loading ? (
           <p style={{ color: '#b3b3b3' }}>Loading tracks...</p>
         ) : (
           <div style={{ marginBottom: '40px' }}>
@@ -633,10 +719,39 @@ function Playlist() {
                 }}>
                   {formatDuration(track.duration_ms)}
                 </span>
+
+                {playlist.id.startsWith('local_') && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeTrack(playlist.id, index);
+                      setTracks(prev => prev.filter((_, i) => i !== index));
+                    }}
+                    style={{
+                      marginLeft: '12px',
+                      padding: '6px 10px',
+                      backgroundColor: 'transparent',
+                      color: '#ff6b6b',
+                      border: '1px solid #ff6b6b',
+                      borderRadius: '14px',
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(255,107,107,0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                    aria-label={`Remove ${track.name}`}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
             ))}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
