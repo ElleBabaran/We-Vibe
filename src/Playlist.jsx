@@ -234,50 +234,8 @@ function Playlist() {
     return `${minutes}:${seconds.padStart(2, '0')}`;
   };
 
-  if (!playlist && !showCreateForm) {
-    return (
-      <div className="home-container">
-        <Sidebar />
-        
-        <div className="home-content">
-          <div style={{ textAlign: 'center', padding: '40px' }}>
-            <h1 style={{ fontSize: '2.5rem', marginBottom: '20px', color: '#fff' }}>
-              🎵 Playlists
-            </h1>
-            <p style={{ color: '#b3b3b3', marginBottom: '30px', fontSize: '1.1rem' }}>
-              Create and manage your playlists
-            </p>
-            
-            <button
-              onClick={() => setShowCreateForm(true)}
-              style={{
-                padding: '16px 32px',
-                backgroundColor: '#1DB954',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '24px',
-                fontSize: '1.1rem',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: '0 4px 12px rgba(29, 185, 84, 0.3)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#1ed760';
-                e.currentTarget.style.transform = 'scale(1.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#1DB954';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            >
-              ➕ Create New Playlist
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Note: We no longer early-return when no playlist is selected.
+  // Instead, we always show the lists and only render details when a playlist is selected.
 
   if (showCreateForm) {
     return (
@@ -436,6 +394,38 @@ function Playlist() {
       <Sidebar />
       
       <div className="home-content">
+        {/* Page Header with Create Button (always visible) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
+          <div>
+            <h1 style={{ fontSize: '2rem', color: '#fff', margin: 0 }}>🎵 Playlists</h1>
+            <p style={{ color: '#b3b3b3', marginTop: 6 }}>Create and manage your playlists</p>
+          </div>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            style={{
+              padding: '12px 20px',
+              backgroundColor: '#1DB954',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '24px',
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 4px 12px rgba(29, 185, 84, 0.3)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#1ed760';
+              e.currentTarget.style.transform = 'scale(1.03)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#1DB954';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            ➕ Create New Playlist
+          </button>
+        </div>
         {/* Spotify Playlists */}
         <div style={{ marginBottom: '30px' }}>
           <h2 style={{ fontSize: '1.8rem', marginBottom: '12px', color: '#fff' }}>Your Spotify Playlists</h2>
@@ -479,6 +469,9 @@ function Playlist() {
           )}
         </div>
 
+        {/* Playlist detail view (only when a playlist is selected) */}
+        {playlist && (
+        <>
         {/* Playlist Header */}
         <div style={{
           display: 'flex',
@@ -733,6 +726,8 @@ function Playlist() {
               </div>
             ))}
           </div>
+        )}
+        </>
         )}
       </div>
     </div>
