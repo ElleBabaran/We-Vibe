@@ -5,9 +5,9 @@ export default function Sidebar() {
 
   return (
     <div className='sidebar'>
-      <div className='menu'>
+      <div className='menu' style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <h2 className='Title'>WeVibe</h2>
-      <ul>
+      <ul style={{ flex: 1 }}>
         <li>
           <img src="/Icons/home.png" alt="home" className='icon'/><Link to="/home">Home</Link></li>
         <li> 
@@ -21,8 +21,10 @@ export default function Sidebar() {
         <li><Link to="artist">Artists</Link></li>
        
       </ul>
+        <div style={{ marginTop: 'auto' }}>
+          <p className='Acc'><Link to="/acc">My Account</Link></p>
+        </div>
       </div>
-      <p className='Acc'><Link to="/acc">My Account</Link></p>
     </div>
   )
 }

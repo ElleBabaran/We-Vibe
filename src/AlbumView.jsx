@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
+import { getPlaylists, addTracksToPlaylist } from './localPlaylists';
 import "./App.css";
 
 function AlbumView() {
@@ -12,6 +13,7 @@ function AlbumView() {
   
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [customPlaylists, setCustomPlaylists] = useState([]);
 
   useEffect(() => {
     if (!album) {
@@ -38,20 +40,20 @@ function AlbumView() {
         console.error("Error fetching album tracks:", err);
         setLoading(false);
       });
+    try { setCustomPlaylists(getPlaylists()); } catch (_) {}
   }, [album, navigate]);
 
   const playTrack = (track, index = 0) => {
-    // Add album info to track object
-    const trackWithAlbum = {
-      ...track,
-      album: album,
-    };
-    
-    // Add this single track to the queue (don't clear existing queue)
+    // Ensure the queued item contains album metadata for artwork
+    const trackWithAlbum = { ...track, album };
+
+    // Compute target index as current queue length before appending
+    const targetIndex = queue.length;
     addTrackToQueue(trackWithAlbum);
-    
-    // Navigate to playback and start playing the selected track
-    navigate('/playback', { state: { track: trackWithAlbum } });
+
+    // Set the current track index to the newly queued track and go to playback
+    playTrackFromQueue(targetIndex);
+    navigate('/playback');
   };
 
   const playAlbum = () => {
@@ -65,6 +67,13 @@ function AlbumView() {
     addAlbumToQueue(tracksWithAlbum, 0);
     navigate('/playback');
     playTrackFromQueue(0);
+  };
+
+  const addAlbumToCustom = (pid) => {
+    if (!pid) return;
+    const tracksWithAlbum = tracks.map(t => ({ ...t, album }));
+    addTracksToPlaylist(pid, tracksWithAlbum);
+    alert('Album added to your playlist');
   };
 
   const formatDuration = (ms) => {
@@ -159,6 +168,14 @@ function AlbumView() {
             >
               ▶️ Play Album
             </button>
+            {customPlaylists.length > 0 && (
+              <select onChange={(e) => addAlbumToCustom(e.target.value)} style={{ marginLeft: '12px', background: '#181818', color: '#fff', border: '1px solid #333', borderRadius: '8px', padding: '8px 10px' }} defaultValue="">
+                <option value="" disabled>Add to custom playlist…</option>
+                {customPlaylists.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 

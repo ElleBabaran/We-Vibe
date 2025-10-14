@@ -1,6 +1,6 @@
 import "./App.css";
 import "./Account.css";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 
@@ -9,13 +9,46 @@ export default function Account() {
   const [formData, setFormData] = useState({
     username: "",
     email: "",
-    password: "",
+    password: "********",
     gender: "",
     birthDay: "",
     birthMonth: "",
     birthYear: "",
     country: ""
   });
+
+  useEffect(() => {
+    try {
+      const storedEmail = localStorage.getItem("wv_user_email") || localStorage.getItem("user_email") || "";
+      const storedPassword = localStorage.getItem("wv_user_password") || localStorage.getItem("user_password") || "";
+      if (storedEmail) {
+        setFormData(prev => ({ ...prev, email: storedEmail }));
+      }
+      if (storedPassword) {
+        const masked = "*".repeat(storedPassword.length);
+        setFormData(prev => ({ ...prev, password: masked }));
+      }
+
+    } catch (_) {}
+  }, []);
+
+  // Fetch email from Spotify if missing
+  useEffect(() => {
+    if (formData.email) return;
+    const token = localStorage.getItem("spotify_access_token");
+    if (!token) return;
+    (async () => {
+      try {
+        const res = await fetch("https://api.spotify.com/v1/me", { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.email) {
+          localStorage.setItem("wv_user_email", data.email);
+          setFormData(prev => ({ ...prev, email: data.email }));
+        }
+      } catch (_) {}
+    })();
+  }, [formData.email]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -75,9 +108,9 @@ export default function Account() {
                   type="email"
                   name="email"
                   className="form-input"
-                  placeholder="Enter your email"
+                  placeholder="Your email"
                   value={formData.email}
-                  onChange={handleInputChange}
+                  readOnly
                 />
               </div>
 
@@ -87,9 +120,9 @@ export default function Account() {
                   type="password"
                   name="password"
                   className="form-input"
-                  placeholder="Enter your password"
+                  placeholder="********"
                   value={formData.password}
-                  onChange={handleInputChange}
+                  readOnly
                 />
               </div>
 
@@ -197,7 +230,7 @@ export default function Account() {
                 Log Out
               </button>
             </div>
-            
+
           </div>
           {/* ====================================================== */}
           {/* END OF THE NEW WRAPPER DIV                             */}

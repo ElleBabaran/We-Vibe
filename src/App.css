@@ -1,3 +1,27 @@
+/* cspell:ignore upnext */
+/* Themed scrollbar for Up Next list */
+.upnext-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.upnext-scroll::-webkit-scrollbar-track {
+  background: #121212; /* match dark bg */
+  border-radius: 8px;
+}
+.upnext-scroll::-webkit-scrollbar-thumb {
+  background: #1DB954; /* Spotify green accent */
+  border-radius: 8px;
+}
+.upnext-scroll::-webkit-scrollbar-thumb:hover {
+  background: #17a54a;
+}
+
+/* Browsers that support it (Firefox, some modern engines) */
+@supports (scrollbar-color: #1DB954 #121212) {
+  .upnext-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #1DB954 #121212;
+  }
+}
 /* Sidebar */
 .sidebar{
   display: flex;

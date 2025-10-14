@@ -2,10 +2,12 @@ import "./App.css";
 import "./browse.css";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
 
 export default function Browse() {
   const navigate = useNavigate();
+  const { addTrackToQueue, playTrackFromQueue, queue } = useMusicQueue();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -68,7 +70,11 @@ export default function Browse() {
   };
 
   const playTrack = (track) => {
-    navigate('/playback', { state: { track } });
+    if (!track) return;
+    const targetIndex = queue.length;
+    addTrackToQueue(track);
+    playTrackFromQueue(targetIndex);
+    navigate('/playback');
   };
 
   const viewAlbum = (album) => {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
+import { getPlaylists, createPlaylist as lpCreate, addTrackToPlaylist, addTracksToPlaylist, moveTrack, getPlaylist } from './localPlaylists';
 import "./App.css";
 
 function Playlist() {
@@ -9,12 +10,15 @@ function Playlist() {
   const navigate = useNavigate();
   const playlist = location.state?.playlist;
   const { addTrackToQueue, clearQueue, playTrackFromQueue, queue } = useMusicQueue();
+  const [visitedPlaylists, setVisitedPlaylists] = useState([]);
   
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
+  const [customPlaylists, setCustomPlaylists] = useState([]);
+  const [selectedCustomId, setSelectedCustomId] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -37,10 +41,31 @@ function Playlist() {
           console.error("Error fetching playlist tracks:", err);
           setLoading(false);
         });
+
+      // Record visited playlist
+      try {
+        const raw = localStorage.getItem('wv_playlists_visited');
+        const list = raw ? JSON.parse(raw) : [];
+        const entry = { id: playlist.id, name: playlist.name, images: playlist.images };
+        const filtered = [entry, ...list.filter(p => p.id !== playlist.id)].slice(0, 12);
+        localStorage.setItem('wv_playlists_visited', JSON.stringify(filtered));
+      } catch (_) {}
     } else {
       setLoading(false);
     }
   }, [playlist, navigate]);
+
+  // Load visited, created, and custom playlists
+  useEffect(() => {
+    try {
+      const visitedRaw = localStorage.getItem('wv_playlists_visited');
+      const visited = visitedRaw ? JSON.parse(visitedRaw) : [];
+      const createdRaw = localStorage.getItem('wv_playlists_created');
+      const created = createdRaw ? JSON.parse(createdRaw) : [];
+      setVisitedPlaylists([...created, ...visited]);
+      setCustomPlaylists(getPlaylists());
+    } catch (_) {}
+  }, [location?.state?.playlist]);
 
   const playTrack = (track) => {
     // Add this track to the queue (don't clear existing queue)
@@ -93,12 +118,46 @@ function Playlist() {
         setNewPlaylistName('');
         setNewPlaylistDescription('');
         setShowCreateForm(false);
+
+        // Store in "created" list
+        try {
+          const raw = localStorage.getItem('wv_playlists_created');
+          const list = raw ? JSON.parse(raw) : [];
+          const entry = { id: newPlaylist.id, name: newPlaylist.name, images: newPlaylist.images };
+          const updated = [entry, ...list.filter(p => p.id !== newPlaylist.id)].slice(0, 20);
+          localStorage.setItem('wv_playlists_created', JSON.stringify(updated));
+        } catch (_) {}
       } else {
         alert('Failed to create playlist');
       }
     } catch (error) {
       console.error("Error creating playlist:", error);
       alert('Error creating playlist');
+    }
+  };
+
+  // Create local custom playlist
+  const createLocalPlaylist = () => {
+    if (!newPlaylistName.trim()) return;
+    const p = lpCreate(newPlaylistName.trim());
+    setCustomPlaylists(prev => [p, ...prev]);
+    setNewPlaylistName('');
+    setShowCreateForm(false);
+  };
+
+  // Add current loaded playlist's tracks to a custom playlist
+  const addLoadedToCustom = (targetId) => {
+    if (!targetId) return;
+    addTracksToPlaylist(targetId, tracks.filter(Boolean));
+    alert('Added to your playlist');
+  };
+
+  // Reorder inside custom playlist view
+  const moveInCustom = (pid, from, to) => {
+    moveTrack(pid, from, to);
+    const updated = getPlaylist(pid);
+    if (updated && pid === selectedCustomId) {
+      setTracks(updated.tracks);
     }
   };
 
@@ -254,6 +313,27 @@ function Playlist() {
       <Sidebar />
       
       <div className="home-content">
+        {/* Visited and Created Playlists */}
+        <div style={{ marginBottom: '30px' }}>
+          <h2 style={{ fontSize: '1.8rem', marginBottom: '12px', color: '#fff' }}>Your Playlists</h2>
+          {visitedPlaylists.length === 0 ? (
+            <p style={{ color: '#b3b3b3' }}>No playlists yet</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
+              {visitedPlaylists.map(p => (
+                <div key={p.id} onClick={() => navigate('/playlist', { state: { playlist: p } })} style={{ background: '#181818', padding: '12px', borderRadius: '8px', cursor: 'pointer' }}>
+                  {p.images?.[0]?.url ? (
+                    <img src={p.images[0].url} alt={p.name} style={{ width: '100%', height: '130px', objectFit: 'cover', borderRadius: '4px', marginBottom: '8px' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: '130px', background: '#333', borderRadius: '4px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: '2rem' }}>🎵</div>
+                  )}
+                  <p style={{ color: '#fff', fontWeight: 'bold', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{p.name}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Playlist Header */}
         <div style={{
           display: 'flex',

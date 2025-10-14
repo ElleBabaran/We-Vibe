@@ -8,6 +8,7 @@ import AlbumView from "./AlbumView";
 import Browse from "./browse";
 import Account from "./Account";
 import Playlist from "./Playlist";
+import MiniPlayer from "./MiniPlayer";
 
 function App() {
   return (
@@ -23,6 +24,8 @@ function App() {
           <Route path="/album" element={<AlbumView />} />
           <Route path="/playlist" element={<Playlist />} />
         </Routes>
+        {/* Persistent bottom mini-player (hidden on /playback internally) */}
+        <MiniPlayer />
       </Router>
     </MusicQueueProvider>
   );

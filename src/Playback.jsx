@@ -3,11 +3,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
 import "./App.css";
+import { getPlaylists, addTrackToPlaylist as addToCustom } from './localPlaylists';
 
 function Playback() {
   const location = useLocation();
   const navigate = useNavigate();
-  const track = location.state?.track;
   const { 
     queue, 
     currentTrackIndex, 
@@ -17,13 +17,23 @@ function Playback() {
     getNextTracks, 
     playNext, 
     playPrevious,
-    removeTrackFromQueue 
+    removeTrackFromQueue,
+    addTrackToQueue,
+    playTrackFromQueue
   } = useMusicQueue();
 
   const [player, setPlayer] = useState(null);
   const [deviceId, setDeviceId] = useState(null);
   const [currentTrack, setCurrentTrack] = useState(null);
   const [fallbackTracks, setFallbackTracks] = useState([]);
+  const [positionMs, setPositionMs] = useState(0);
+  const [durationMs, setDurationMs] = useState(0);
+  const [isLooping, setIsLooping] = useState(false);
+  const [sortMode, setSortMode] = useState("queue"); // queue | mostPlayed | az
+  const [customPlaylists, setCustomPlaylists] = useState([]);
+
+  // Small utility to wait between retries
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -42,10 +52,25 @@ function Playback() {
         });
 
         // Listeners
-        player.addListener("ready", ({ device_id }) => {
+        player.addListener("ready", async ({ device_id }) => {
           console.log("Spotify Player ready with Device ID:", device_id);
           setDeviceId(device_id);
           setPlayer(player);
+
+          // Attempt to transfer playback to this Web Playback SDK device
+          try {
+            const res = await fetch("https://api.spotify.com/v1/me/player", {
+              method: "PUT",
+              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ device_ids: [device_id], play: false })
+            });
+            if (!res.ok) {
+              const text = await res.text();
+              console.warn("Failed to transfer playback to SDK device:", res.status, text);
+            }
+          } catch (e) {
+            console.warn("Transfer playback request failed", e);
+          }
         });
 
         player.addListener("not_ready", ({ device_id }) => {
@@ -69,6 +94,8 @@ function Playback() {
         player.addListener("player_state_changed", (state) => {
           if (!state) return;
           setIsPlaying(!state.paused);
+          if (typeof state.position === "number") setPositionMs(state.position);
+          if (typeof state.duration === "number") setDurationMs(state.duration);
         });
 
         player.connect();
@@ -96,6 +123,7 @@ function Playback() {
     
     // Fetch fallback tracks when no queue exists
     fetchFallbackTracks(token);
+    try { setCustomPlaylists(getPlaylists()); } catch (_) {}
   }, [navigate]);
 
   const fetchFallbackTracks = async (token) => {
@@ -114,8 +142,25 @@ function Playback() {
   // Update current track when queue changes
   useEffect(() => {
     const track = getCurrentTrack();
-    setCurrentTrack(track);
+      setCurrentTrack(track);
   }, [getCurrentTrack, currentTrackIndex]);
+
+  // Smooth progress polling
+  useEffect(() => {
+    if (!player) return;
+    const interval = setInterval(async () => {
+      try {
+        const state = await player.getCurrentState();
+        if (!state) return;
+          setIsPlaying(!state.paused);
+          setPositionMs(state.position || 0);
+          setDurationMs(state.duration || 0);
+      } catch (_) {
+        // no-op
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [player, setIsPlaying]);
 
   // Function to start playback on our player device
   const startPlayback = async (trackToPlay = currentTrack) => {
@@ -127,14 +172,38 @@ function Playback() {
 
     try {
       console.log("Starting playback for track:", trackToPlay.name);
+      // increment play count
+      try {
+        const countsRaw = localStorage.getItem("wv_play_counts");
+        const counts = countsRaw ? JSON.parse(countsRaw) : {};
+        const key = trackToPlay.id || trackToPlay.uri;
+        counts[key] = (counts[key] || 0) + 1;
+        localStorage.setItem("wv_play_counts", JSON.stringify(counts));
+      } catch (_) {}
       
-      // If we have a queue, play the entire queue starting from current track
+      // Ensure SDK device is active before trying to play
+      try {
+        await fetch("https://api.spotify.com/v1/me/player", {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ device_ids: [deviceId], play: false })
+        });
+      } catch (e) {
+        console.warn("Device transfer before play failed", e);
+      }
+
+      // If we have a queue, play from the current track
       if (queue.length > 0) {
         const currentIndex = currentTrackIndex;
-        const uris = queue.slice(currentIndex).map(t => t.uri);
-        console.log("Playing queue with URIs:", uris);
-        
-        const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+        // Spotify API has practical limits; avoid sending very large payloads
+        const MAX_URIS = 100;
+        const uris = queue
+          .slice(currentIndex, currentIndex + MAX_URIS)
+          .map(t => t.uri)
+          .filter(Boolean);
+        console.log("Starting queue playback with up to", uris.length, "URIs");
+
+        let response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
           method: "PUT",
           body: JSON.stringify({ uris }),
           headers: {
@@ -142,46 +211,144 @@ function Playback() {
             "Content-Type": "application/json",
           },
         });
-        
+
+        // Fallback to single-track start if the bulk request fails
         if (!response.ok) {
-          const errorData = await response.text();
-          console.error("Playback API error:", response.status, errorData);
+          const errorText = await response.text();
+          console.warn("Bulk play failed, falling back to single track:", response.status, errorText);
+          response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+            method: "PUT",
+            body: JSON.stringify({ uris: [trackToPlay.uri] }),
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          });
+          if (!response.ok) {
+            const text2 = await response.text();
+            console.error("Single-track fallback failed:", response.status, text2);
+          }
         }
       } else {
-        // Play single track
-        console.log("Playing single track:", trackToPlay.uri);
+      // Play single track
+      console.log("Playing single track:", trackToPlay.uri);
         const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-      method: "PUT",
-          body: JSON.stringify({ uris: [trackToPlay.uri] }),
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
+        method: "PUT",
+        body: JSON.stringify({ uris: [trackToPlay.uri] }),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-        if (!response.ok) {
-          const errorData = await response.text();
-          console.error("Playback API error:", response.status, errorData);
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("Playback API error:", response.status, errorData);
         }
       }
-    setIsPlaying(true);
+
+      // Give the SDK a moment and verify it actually started; if not, retry a couple times
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await sleep(400);
+        try {
+          const state = await player.getCurrentState?.();
+          if (state && !state.paused) {
+            setIsPlaying(true);
+            return;
+          }
+        } catch (_) {}
+
+        // Nudge with toggle if still paused
+        try { await player.togglePlay?.(); } catch (_) {}
+      }
+
+      setIsPlaying(true);
     } catch (error) {
       console.error("Error starting playback:", error);
     }
   };
 
-  const togglePlayPause = () => {
-    if (player) {
-      player.togglePlay();
+  const togglePlayPause = async () => {
+    if (!player) return;
+
+    try {
+      // Required by browsers: must be called from a user gesture
+      if (player.activateElement) {
+        await player.activateElement();
+      }
+
+      const state = await player.getCurrentState();
+
+      // If nothing is loaded yet but we have a track queued, start it
+      if (!state || (!state.track_window?.current_track && currentTrack)) {
+        await startPlayback(currentTrack);
+        return;
+      }
+
+      await player.togglePlay();
+    } catch (e) {
+      console.warn("togglePlayPause failed, attempting direct start", e);
+      try {
+        if (currentTrack) {
+          await startPlayback(currentTrack);
+        }
+      } catch (_) {}
     }
   };
 
-  const handleNext = () => {
-    playNext();
+  const handleSeek = async (e) => {
+    if (!player || !durationMs) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.min(Math.max(clickX / rect.width, 0), 1);
+    const newPosition = Math.floor(ratio * durationMs);
+    try {
+      await player.seek(newPosition);
+      setPositionMs(newPosition);
+    } catch (error) {
+      console.error("Seek error:", error);
+    }
   };
 
-  const handlePrevious = () => {
+  const handleNext = async () => {
+    if (player?.nextTrack) {
+      try {
+        await player.nextTrack();
+        return;
+      } catch (e) {
+        console.warn("SDK nextTrack failed, falling back", e);
+      }
+    }
+      playNext();
+  };
+
+  const handlePrevious = async () => {
+    if (player?.previousTrack) {
+      try {
+        await player.previousTrack();
+        return;
+      } catch (e) {
+        console.warn("SDK previousTrack failed, falling back", e);
+      }
+    }
     playPrevious();
+  };
+
+  const toggleLoop = async () => {
+    const token = localStorage.getItem("spotify_access_token");
+    if (!token || !deviceId) return;
+    const next = !isLooping;
+    try {
+      const state = next ? "track" : "off";
+      const res = await fetch(`https://api.spotify.com/v1/me/player/repeat?state=${state}&device_id=${deviceId}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("repeat api failed");
+      setIsLooping(next);
+    } catch (e) {
+      console.error("Loop toggle failed", e);
+    }
   };
 
   const formatDuration = (ms) => {
@@ -190,16 +357,55 @@ function Playback() {
     return `${minutes}:${seconds.padStart(2, "0")}`;
   };
 
-  // Once player is ready, start playing the current track
+  // Once player is ready, start playing the current track from the queue
   useEffect(() => {
     if (deviceId && currentTrack) {
       startPlayback();
     }
   }, [deviceId, currentTrack]);
 
-  // Get next tracks for the queue display
-  const nextTracks = getNextTracks(5);
-  const displayTracks = nextTracks.length > 0 ? nextTracks : fallbackTracks;
+  // Get tracks to display: show actual queue from current index, otherwise fall back
+  const queuedFromCurrent = queue.slice(currentTrackIndex + 1, currentTrackIndex + 1 + 25);
+  const baseTracks = queuedFromCurrent.length > 0 ? queuedFromCurrent : fallbackTracks;
+  let displayTracks = baseTracks;
+  const handleClickUpNext = async (track) => {
+    if (!track) return;
+    // Try to locate this track in the actual queue by id/uri
+    const matchIndex = queue.findIndex(
+      (t) => (t?.id && t.id === track.id) || (t?.uri && t.uri === track.uri)
+    );
+
+    if (matchIndex >= 0) {
+      playTrackFromQueue(matchIndex);
+      try { await startPlayback(queue[matchIndex]); } catch (_) {}
+      return;
+    }
+
+    // Not in queue (likely from fallback list). Add and play it.
+    addTrackToQueue(track);
+    const newIndex = queue.length; // index of newly appended item
+    playTrackFromQueue(newIndex);
+    try { await startPlayback(track); } catch (_) {}
+  };
+
+  const addCurrentToCustom = (pid) => {
+    if (!pid || !currentTrack) return;
+    addToCustom(pid, currentTrack);
+    alert('Added to your playlist');
+  };
+  try {
+    if (sortMode === "az") {
+      displayTracks = [...baseTracks].sort((a, b) => (a?.name || "").localeCompare(b?.name || ""));
+    } else if (sortMode === "mostPlayed") {
+      const countsRaw = localStorage.getItem("wv_play_counts");
+      const counts = countsRaw ? JSON.parse(countsRaw) : {};
+      displayTracks = [...baseTracks].sort((a, b) => {
+        const ka = a?.id || a?.uri;
+        const kb = b?.id || b?.uri;
+        return (counts[kb] || 0) - (counts[ka] || 0);
+      });
+    }
+  } catch (_) {}
 
   if (!currentTrack) {
     return (
@@ -338,19 +544,20 @@ function Playback() {
 
             {/* Progress Bar */}
             <div style={{ marginTop: "20px", marginBottom: "20px" }}>
-              <div style={{
+              <div onClick={handleSeek} style={{
                 width: "100%",
                 height: "4px",
                 backgroundColor: "#e0e0e0",
                 borderRadius: "2px",
-                overflow: "hidden"
+                overflow: "hidden",
+                cursor: durationMs ? "pointer" : "default"
               }}>
                 <div style={{
-                  width: "30%", // This would be dynamic based on actual progress
-                  height: "100%",
-                  backgroundColor: "#1DB954",
-                  borderRadius: "2px",
-                  transition: "width 0.3s ease"
+                  width: `${durationMs ? Math.min(100, (positionMs / durationMs) * 100) : 0}%`,
+                    height: "100%",
+                    backgroundColor: "#1DB954",
+                    borderRadius: "2px",
+                  transition: "width 0.3s linear"
                 }}></div>
               </div>
               <div style={{
@@ -360,8 +567,8 @@ function Playback() {
                 fontSize: "0.8rem",
                 color: "#666"
               }}>
-                <span>1:23</span>
-                <span>4:56</span>
+                <span>{formatDuration(positionMs || 0)}</span>
+                <span>{formatDuration(durationMs || 0)}</span>
               </div>
             </div>
 
@@ -467,11 +674,11 @@ function Playback() {
             {/* Loop Button */}
             <div style={{ display: "flex", justifyContent: "center", marginTop: "20px" }}>
               <button
-                onClick={() => {/* Loop functionality */}}
+                onClick={toggleLoop}
                 style={{
                   width: "40px",
                   height: "40px",
-                  backgroundColor: "#fff",
+                  backgroundColor: isLooping ? "#1DB954" : "#fff",
                   borderRadius: "50%",
                   border: "none",
                   boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.8)",
@@ -491,10 +698,22 @@ function Playback() {
                 }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" fill="#666"/>
+                  <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" fill={isLooping ? "#fff" : "#666"}/>
                 </svg>
               </button>
             </div>
+
+            {/* Add to custom playlist */}
+            {customPlaylists.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
+                <select onChange={(e) => addCurrentToCustom(e.target.value)} style={{ background: '#181818', color: '#fff', border: '1px solid #333', borderRadius: '8px', padding: '6px 8px' }} defaultValue="">
+                  <option value="" disabled>Add current track to…</option>
+                  {customPlaylists.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Queue Section */}
@@ -511,7 +730,27 @@ function Playback() {
               Up Next
             </h2>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+              <label htmlFor="wv-sort" style={{ color: "#b3b3b3", fontSize: "0.9rem" }}>Sort:</label>
+              <select
+                id="wv-sort"
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value)}
+                style={{
+                  background: "#181818",
+                  color: "#fff",
+                  border: "1px solid #333",
+                  borderRadius: "8px",
+                  padding: "6px 10px"
+                }}
+              >
+                <option value="queue">Queue Order</option>
+                <option value="mostPlayed">Most Played</option>
+                <option value="az">A–Z</option>
+              </select>
+            </div>
+
+            <div className="upnext-scroll" style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "60vh", overflowY: "auto", paddingRight: "6px" }}>
               {displayTracks.length === 0 ? (
                 <p style={{ color: '#b3b3b3', textAlign: 'center', padding: '20px' }}>
                   No tracks available
@@ -520,23 +759,24 @@ function Playback() {
                 displayTracks.map((track, index) => (
                   <div
                     key={track.id || index}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "16px",
-                    padding: "12px",
-                    backgroundColor: "#181818",
-                    borderRadius: "12px",
+                    onClick={() => handleClickUpNext(track)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "16px",
+                      padding: "12px",
+                      backgroundColor: "#181818",
+                      borderRadius: "12px",
                     cursor: "pointer",
-                    transition: "background-color 0.2s",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#282828")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#181818")
-                  }
-                >
+                      transition: "background-color 0.2s",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.backgroundColor = "#282828")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.backgroundColor = "#181818")
+                    }
+                  >
                     {track.album?.images?.[0]?.url ? (
                       <img
                         src={track.album.images[0].url}
@@ -601,7 +841,7 @@ function Playback() {
 
 
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/browse')}
               style={{
                 marginTop: "40px",
                 padding: "12px 32px",

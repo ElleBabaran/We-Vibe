@@ -7,7 +7,12 @@ const SCOPES =[
   "user-read-private",
   "user-read-email",
   "playlist-read-private",
-  "playlist-modify-private"
+  "playlist-modify-private",
+  // Required for Web Playback SDK and controlling playback
+  "streaming",
+  "user-modify-playback-state",
+  "user-read-playback-state",
+  "user-read-currently-playing"
 ].join("%20");
 
 export const loginUrl = `${AUTH_ENDPOINT}?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=${SCOPES}&response_type=${RESPONSE_TYPE}&show_dialog=true`;

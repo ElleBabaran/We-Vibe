@@ -129,6 +129,8 @@
   animation: fadeIn 0.3s ease;
   flex: 1;
   overflow-y: visible;
+  transform: scale(0.9);
+  transform-origin: top center;
 }
 
 @keyframes fadeIn {
