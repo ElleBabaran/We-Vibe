@@ -87,6 +87,26 @@ export const MusicQueueProvider = ({ children }) => {
     return queue.slice(currentTrackIndex + 1, currentTrackIndex + 1 + limit);
   }, [queue, currentTrackIndex]);
 
+  // Move track in queue (for drag and drop)
+  const moveTrackInQueue = useCallback((fromIndex, toIndex) => {
+    setQueue(prev => {
+      const newQueue = [...prev];
+      const [movedTrack] = newQueue.splice(fromIndex, 1);
+      newQueue.splice(toIndex, 0, movedTrack);
+      
+      // Adjust current track index if needed
+      if (fromIndex === currentTrackIndex) {
+        setCurrentTrackIndex(toIndex);
+      } else if (fromIndex < currentTrackIndex && toIndex >= currentTrackIndex) {
+        setCurrentTrackIndex(prev => prev - 1);
+      } else if (fromIndex > currentTrackIndex && toIndex <= currentTrackIndex) {
+        setCurrentTrackIndex(prev => prev + 1);
+      }
+      
+      return newQueue;
+    });
+  }, [currentTrackIndex]);
+
   const value = {
     queue,
     currentTrackIndex,
@@ -102,6 +122,7 @@ export const MusicQueueProvider = ({ children }) => {
     playPrevious,
     getCurrentTrack,
     getNextTracks,
+    moveTrackInQueue,
   };
 
   return (

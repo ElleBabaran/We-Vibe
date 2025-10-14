@@ -17,15 +17,20 @@ function Playback() {
     getNextTracks, 
     playNext, 
     playPrevious,
-    removeTrackFromQueue 
+    removeTrackFromQueue,
+    moveTrackInQueue,
+    addTrackToQueue 
   } = useMusicQueue();
 
   const [player, setPlayer] = useState(null);
   const [deviceId, setDeviceId] = useState(null);
   const [currentTrack, setCurrentTrack] = useState(null);
   const [fallbackTracks, setFallbackTracks] = useState([]);
-  const [positionMs, setPositionMs] = useState(0);
-  const [durationMs, setDurationMs] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [volume, setVolume] = useState(70);
+  const [suggestedTracks, setSuggestedTracks] = useState([]);
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -70,12 +75,15 @@ function Playback() {
         // Listen for track changes
         player.addListener("player_state_changed", (state) => {
           if (!state) return;
+          
+          console.log("Player state changed:", state);
           setIsPlaying(!state.paused);
-          if (typeof state.position === "number") {
-            setPositionMs(state.position);
-          }
-          if (typeof state.duration === "number") {
-            setDurationMs(state.duration);
+          
+          // Update progress and duration
+          if (state.position !== null && state.duration !== null) {
+            setCurrentTime(state.position);
+            setDuration(state.duration);
+            setProgress((state.position / state.duration) * 100);
           }
         });
 
@@ -93,7 +101,7 @@ function Playback() {
       // Retry after a short delay
       const timer = setTimeout(() => {
         if (window.Spotify) {
-    loadPlayer();
+          loadPlayer();
         } else {
           console.error("Spotify SDK failed to load");
         }
@@ -119,30 +127,63 @@ function Playback() {
     }
   };
 
-  // Update current track when queue changes
-  useEffect(() => {
-    const track = getCurrentTrack();
-    setCurrentTrack(track);
-  }, [getCurrentTrack, currentTrackIndex]);
+  const fetchSuggestedTracks = async (token, track) => {
+    if (!track?.id) return;
+    
+    try {
+      // Get recommendations based on current track
+      const response = await fetch(
+        `https://api.spotify.com/v1/recommendations?seed_tracks=${track.id}&limit=10`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await response.json();
+      setSuggestedTracks(data.tracks || []);
+    } catch (error) {
+      console.error("Error fetching suggested tracks:", error);
+    }
+  };
 
-  // Poll player state for smooth progress updates
+  // Update current track when queue changes or when track is passed via navigation
   useEffect(() => {
-    if (!player) return;
-    const interval = setInterval(async () => {
-      try {
-        const state = await player.getCurrentState();
-        if (state) {
-          setIsPlaying(!state.paused);
-          setPositionMs(state.position || 0);
-          setDurationMs(state.duration || 0);
-        }
-      } catch (err) {
-        // no-op
+    if (track) {
+      // Track passed via navigation state
+      setCurrentTrack(track);
+    } else {
+      // Track from queue
+      const queueTrack = getCurrentTrack();
+      setCurrentTrack(queueTrack);
+    }
+  }, [getCurrentTrack, currentTrackIndex, track]);
+
+  // Fetch suggested tracks when current track changes
+  useEffect(() => {
+    if (currentTrack) {
+      const token = localStorage.getItem("spotify_access_token");
+      if (token) {
+        fetchSuggestedTracks(token, currentTrack);
       }
-    }, 500);
+    }
+  }, [currentTrack]);
 
-    return () => clearInterval(interval);
-  }, [player, setIsPlaying]);
+  // Update progress every second when playing
+  useEffect(() => {
+    let interval;
+    if (isPlaying && player) {
+      interval = setInterval(() => {
+        player.getCurrentState().then(state => {
+          if (state && state.position !== null && state.duration !== null) {
+            setCurrentTime(state.position);
+            setDuration(state.duration);
+            setProgress((state.position / state.duration) * 100);
+          }
+        });
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPlaying, player]);
 
   // Function to start playback on our player device
   const startPlayback = async (trackToPlay = currentTrack) => {
@@ -155,74 +196,108 @@ function Playback() {
     try {
       console.log("Starting playback for track:", trackToPlay.name);
       
-      // If we have a queue, play the entire queue starting from current track
-      if (queue.length > 0) {
-        const currentIndex = currentTrackIndex;
-        const uris = queue.slice(currentIndex).map(t => t.uri);
-        console.log("Playing queue with URIs:", uris);
-        
-        const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-          method: "PUT",
-          body: JSON.stringify({ uris }),
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.text();
-          console.error("Playback API error:", response.status, errorData);
-        }
-      } else {
-        // Play single track
-        console.log("Playing single track:", trackToPlay.uri);
-        const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-      method: "PUT",
-          body: JSON.stringify({ uris: [trackToPlay.uri] }),
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
+      // Play single track
+      console.log("Playing single track:", trackToPlay.uri);
+      const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+        method: "PUT",
+        body: JSON.stringify({ uris: [trackToPlay.uri] }),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-        if (!response.ok) {
-          const errorData = await response.text();
-          console.error("Playback API error:", response.status, errorData);
-        }
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("Playback API error:", response.status, errorData);
+      } else {
+        console.log("Playback started successfully");
+        setIsPlaying(true);
       }
-    setIsPlaying(true);
     } catch (error) {
       console.error("Error starting playback:", error);
     }
   };
 
-  const togglePlayPause = () => {
+  const togglePlayPause = async () => {
     if (player) {
-      player.togglePlay();
+      try {
+        await player.togglePlay();
+      } catch (error) {
+        console.error("Error toggling play/pause:", error);
+      }
     }
   };
 
   const handleSeek = async (e) => {
-    if (!player || !durationMs) return;
+    if (!player || !duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const ratio = Math.min(Math.max(clickX / rect.width, 0), 1);
-    const newPosition = Math.floor(ratio * durationMs);
+    const newPosition = Math.floor(ratio * duration);
     try {
       await player.seek(newPosition);
-      setPositionMs(newPosition);
+      setCurrentTime(newPosition);
     } catch (error) {
       console.error("Seek error:", error);
     }
   };
 
-  const handleNext = () => {
-    playNext();
+  const handleNext = async () => {
+    if (player) {
+      try {
+        await player.nextTrack();
+      } catch (error) {
+        console.error("Error skipping to next track:", error);
+        // Fallback to queue-based next
+        playNext();
+      }
+    } else {
+      playNext();
+    }
   };
 
-  const handlePrevious = () => {
-    playPrevious();
+  const handlePrevious = async () => {
+    if (player) {
+      try {
+        await player.previousTrack();
+      } catch (error) {
+        console.error("Error going to previous track:", error);
+        // Fallback to queue-based previous
+        playPrevious();
+      }
+    } else {
+      playPrevious();
+    }
+  };
+
+  const handleVolumeChange = async (newVolume) => {
+    setVolume(newVolume);
+    if (player) {
+      try {
+        await player.setVolume(newVolume / 100);
+      } catch (error) {
+        console.error("Error setting volume:", error);
+      }
+    }
+  };
+
+  const handleDragStart = (e, index) => {
+    e.dataTransfer.setData('text/plain', index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+    const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
+    if (dragIndex !== dropIndex && moveTrackInQueue) {
+      moveTrackInQueue(dragIndex, dropIndex);
+    }
   };
 
   const formatDuration = (ms) => {
@@ -281,8 +356,6 @@ function Playback() {
       </div>
     );
   }
-
-  const progressPercent = durationMs ? Math.min(100, (positionMs / durationMs) * 100) : 0;
 
   return (
     <div className="home-container">
@@ -381,7 +454,7 @@ function Playback() {
 
             {/* Progress Bar */}
             <div style={{ marginTop: "20px", marginBottom: "20px" }}>
-              <div
+              <div 
                 onClick={handleSeek}
                 style={{
                   width: "100%",
@@ -389,30 +462,26 @@ function Playback() {
                   backgroundColor: "#e0e0e0",
                   borderRadius: "2px",
                   overflow: "hidden",
-                  cursor: durationMs ? "pointer" : "default",
+                  cursor: duration ? "pointer" : "default",
                 }}
               >
-                <div
-                  style={{
-                    width: `${progressPercent}%`,
-                    height: "100%",
-                    backgroundColor: "#1DB954",
-                    borderRadius: "2px",
-                    transition: "width 0.3s linear",
-                  }}
-                />
+                <div style={{
+                  width: `${progress}%`,
+                  height: "100%",
+                  backgroundColor: "#1DB954",
+                  borderRadius: "2px",
+                  transition: "width 0.3s linear",
+                }} />
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginTop: "8px",
-                  fontSize: "0.8rem",
-                  color: "#666",
-                }}
-              >
-                <span>{formatDuration(positionMs)}</span>
-                <span>{formatDuration(durationMs)}</span>
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: "8px",
+                fontSize: "0.8rem",
+                color: "#666"
+              }}>
+                <span>{formatDuration(currentTime || 0)}</span>
+                <span>{formatDuration(duration || 0)}</span>
               </div>
             </div>
 
@@ -515,36 +584,29 @@ function Playback() {
               </button>
             </div>
 
-            {/* Loop Button */}
-            <div style={{ display: "flex", justifyContent: "center", marginTop: "20px" }}>
-              <button
-                onClick={() => {/* Loop functionality */}}
-                style={{
-                  width: "40px",
-                  height: "40px",
-                  backgroundColor: "#fff",
-                  borderRadius: "50%",
-                  border: "none",
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.8)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "scale(1.1)";
-                  e.currentTarget.style.boxShadow = "0 6px 20px rgba(0, 0, 0, 0.3)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.8)";
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" fill="#666"/>
+            {/* Volume Control */}
+            <div style={{ marginTop: "20px", padding: "0 20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="#666"/>
                 </svg>
-              </button>
+                <span style={{ fontSize: "0.8rem", color: "#666", minWidth: "30px" }}>{volume}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volume}
+                onChange={(e) => handleVolumeChange(parseInt(e.target.value))}
+                style={{
+                  width: "100%",
+                  height: "4px",
+                  background: "#e0e0e0",
+                  borderRadius: "2px",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              />
             </div>
           </div>
 
@@ -571,23 +633,27 @@ function Playback() {
                 displayTracks.map((track, index) => (
                   <div
                     key={track.id || index}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "16px",
-                    padding: "12px",
-                    backgroundColor: "#181818",
-                    borderRadius: "12px",
-                    cursor: "pointer",
-                    transition: "background-color 0.2s",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#282828")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#181818")
-                  }
-                >
+                    draggable={true}
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, index)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "16px",
+                      padding: "12px",
+                      backgroundColor: "#181818",
+                      borderRadius: "12px",
+                      cursor: "grab",
+                      transition: "background-color 0.2s",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.backgroundColor = "#282828")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.backgroundColor = "#181818")
+                    }
+                  >
                     {track.album?.images?.[0]?.url ? (
                       <img
                         src={track.album.images[0].url}
@@ -601,55 +667,54 @@ function Playback() {
                         }}
                       />
                     ) : (
-                  <div
-                    style={{
-                      width: "56px",
-                      height: "56px",
-                      borderRadius: "8px",
-                      background: `linear-gradient(135deg, 
-                        ${index === 0
-                          ? "#7c9fff, #a8b8ff"
-                          : index === 1
-                          ? "#d896ff, #f0a8ff"
-                          : index === 2
-                          ? "#b8a8ff, #d8c0ff"
-                          : "#ffa8c8, #ffc0d8"})`,
-                      flexShrink: 0,
-                    }}
-                  ></div>
+                      <div
+                        style={{
+                          width: "56px",
+                          height: "56px",
+                          borderRadius: "8px",
+                          background: `linear-gradient(135deg, 
+                            ${index === 0
+                              ? "#7c9fff, #a8b8ff"
+                              : index === 1
+                              ? "#d896ff, #f0a8ff"
+                              : index === 2
+                              ? "#b8a8ff, #d8c0ff"
+                              : "#ffa8c8, #ffc0d8"})`,
+                          flexShrink: 0,
+                        }}
+                      ></div>
                     )}
 
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p
-                      style={{
-                        fontWeight: "bold",
-                        fontSize: "1rem",
-                        color: "#fff",
-                        marginBottom: "4px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p
+                        style={{
+                          fontWeight: "bold",
+                          fontSize: "1rem",
+                          color: "#fff",
+                          marginBottom: "4px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {track.name}
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "0.9rem",
-                        color: "#b3b3b3",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "0.9rem",
+                          color: "#b3b3b3",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {track.artists?.map(a => a.name).join(', ')}
-                    </p>
+                      </p>
+                    </div>
                   </div>
-                </div>
                 ))
               )}
             </div>
-
 
             <button
               onClick={() => navigate(-1)}
@@ -668,6 +733,111 @@ function Playback() {
             >
               ← Back to Browse
             </button>
+
+            {/* Suggested Songs */}
+            {suggestedTracks.length > 0 && (
+              <div style={{ marginTop: "40px" }}>
+                <h3
+                  style={{
+                    fontSize: "1.8rem",
+                    fontWeight: "bold",
+                    marginBottom: "20px",
+                    color: "#fff",
+                    letterSpacing: "-0.5px",
+                  }}
+                >
+                  🎵 Suggested Songs
+                </h3>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {suggestedTracks.slice(0, 5).map((track, index) => (
+                    <div
+                      key={track.id}
+                      onClick={() => {
+                        addTrackToQueue(track);
+                        navigate('/playback', { state: { track } });
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "16px",
+                        padding: "12px",
+                        backgroundColor: "#181818",
+                        borderRadius: "12px",
+                        cursor: "pointer",
+                        transition: "background-color 0.2s",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.backgroundColor = "#282828")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.backgroundColor = "#181818")
+                      }
+                    >
+                      {track.album?.images?.[0]?.url ? (
+                        <img
+                          src={track.album.images[0].url}
+                          alt={track.name}
+                          style={{
+                            width: "56px",
+                            height: "56px",
+                            objectFit: "cover",
+                            borderRadius: "8px",
+                            flexShrink: 0,
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: "56px",
+                            height: "56px",
+                            borderRadius: "8px",
+                            background: `linear-gradient(135deg, 
+                              ${index === 0
+                                ? "#7c9fff, #a8b8ff"
+                                : index === 1
+                                ? "#d896ff, #f0a8ff"
+                                : index === 2
+                                ? "#b8a8ff, #d8c0ff"
+                                : "#ffa8c8, #ffc0d8"})`,
+                            flexShrink: 0,
+                          }}
+                        ></div>
+                      )}
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p
+                          style={{
+                            fontWeight: "bold",
+                            fontSize: "1rem",
+                            color: "#fff",
+                            marginBottom: "4px",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {track.name}
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "0.9rem",
+                            color: "#b3b3b3",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {track.artists?.map(a => a.name).join(', ')}
+                        </p>
+                      </div>
+                      
+                      <span style={{ color: "#1DB954", fontSize: "1.2rem" }}>+</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
