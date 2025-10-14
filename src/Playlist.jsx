@@ -20,6 +20,10 @@ function Playlist() {
   const [newPlaylistCoverImage, setNewPlaylistCoverImage] = useState('');
   const [customPlaylists, setCustomPlaylists] = useState([]);
   const [selectedCustomId, setSelectedCustomId] = useState('');
+  const [showAddMusic, setShowAddMusic] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("spotify_access_token");
@@ -77,7 +81,8 @@ function Playlist() {
       const visited = visitedRaw ? JSON.parse(visitedRaw) : [];
       const createdRaw = localStorage.getItem('wv_playlists_created');
       const created = createdRaw ? JSON.parse(createdRaw) : [];
-      setVisitedPlaylists([...created, ...visited]);
+      // Combine visited and created playlists, but keep them separate for display
+      setVisitedPlaylists([...visited, ...created]);
       setCustomPlaylists(getPlaylists());
     } catch (_) {}
   }, [location?.state?.playlist, showCreateForm]); // Added showCreateForm to refresh when form closes
@@ -148,6 +153,68 @@ function Playlist() {
     } catch (error) {
       console.error("Error creating playlist:", error);
       alert('Error creating playlist');
+    }
+  };
+
+  // Search for music to add to playlist
+  const searchMusic = async (query) => {
+    if (!query.trim()) {
+      setSearchResults(null);
+      return;
+    }
+
+    setSearchLoading(true);
+    const token = localStorage.getItem("spotify_access_token");
+
+    if (!token) {
+      navigate("/");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=10`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data.tracks?.items || []);
+      } else {
+        console.error("Search failed");
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error("Error searching:", error);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Add track to current playlist
+  const addTrackToCurrentPlaylist = (track) => {
+    if (!playlist) return;
+
+    const isLocal = location.state?.isLocal || playlist.id?.startsWith('local_');
+    
+    if (isLocal) {
+      // Add to local playlist
+      addTrackToPlaylist(playlist.id, track);
+      // Update tracks display
+      const updatedPlaylist = getPlaylist(playlist.id);
+      if (updatedPlaylist) {
+        setTracks(updatedPlaylist.tracks);
+      }
+      alert(`Added "${track.name}" to playlist!`);
+    } else {
+      // For Spotify playlists, we'd need to use the Spotify API
+      // This is more complex and requires additional permissions
+      alert('Adding to Spotify playlists requires additional setup');
     }
   };
 
@@ -259,11 +326,11 @@ function Playlist() {
             </button>
           </div>
 
-          {/* Spotify Playlists */}
+          {/* Visited & Created Playlists */}
           <div style={{ marginBottom: '30px', padding: '0 40px' }}>
-            <h2 style={{ fontSize: '1.8rem', marginBottom: '12px', color: '#fff' }}>Your Spotify Playlists</h2>
+            <h2 style={{ fontSize: '1.8rem', marginBottom: '12px', color: '#fff' }}>Your Playlists</h2>
             {visitedPlaylists.length === 0 ? (
-              <p style={{ color: '#b3b3b3' }}>No Spotify playlists yet</p>
+              <p style={{ color: '#b3b3b3' }}>No playlists yet</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
                 {visitedPlaylists.map(p => (
@@ -469,12 +536,12 @@ function Playlist() {
               )}
             </div>
             
-            <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
               <button
-                onClick={createPlaylist}
+                onClick={createLocalPlaylist}
                 disabled={!newPlaylistName.trim()}
                 style={{
-                  padding: '12px 24px',
+                  padding: '12px 32px',
                   backgroundColor: newPlaylistName.trim() ? '#1DB954' : '#666',
                   color: '#fff',
                   border: 'none',
@@ -485,25 +552,7 @@ function Playlist() {
                   transition: 'all 0.2s',
                 }}
               >
-                Create Spotify Playlist
-              </button>
-              
-              <button
-                onClick={createLocalPlaylist}
-                disabled={!newPlaylistName.trim()}
-                style={{
-                  padding: '12px 24px',
-                  backgroundColor: newPlaylistName.trim() ? '#1ed760' : '#666',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '24px',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  cursor: newPlaylistName.trim() ? 'pointer' : 'not-allowed',
-                  transition: 'all 0.2s',
-                }}
-              >
-                Create Local Playlist
+                Create Playlist
               </button>
               
               <button
@@ -645,32 +694,170 @@ function Playlist() {
           </div>
         </div>
 
-        {/* Back Button */}
-        <button
-          onClick={() => navigate(-1)}
-          style={{
+        {/* Back Button and Add Music */}
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'center' }}>
+          <button
+            onClick={() => navigate(-1)}
+            style={{
+              padding: '10px 24px',
+              backgroundColor: 'transparent',
+              color: '#b3b3b3',
+              border: '2px solid #b3b3b3',
+              borderRadius: '20px',
+              fontSize: '0.9rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#fff';
+              e.currentTarget.style.borderColor = '#fff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#b3b3b3';
+              e.currentTarget.style.borderColor = '#b3b3b3';
+            }}
+          >
+            ← Back
+          </button>
+
+          {(location.state?.isLocal || playlist.id?.startsWith('local_')) && (
+            <button
+              onClick={() => setShowAddMusic(!showAddMusic)}
+              style={{
+                padding: '10px 24px',
+                backgroundColor: showAddMusic ? '#1DB954' : 'transparent',
+                color: showAddMusic ? '#fff' : '#1DB954',
+                border: '2px solid #1DB954',
+                borderRadius: '20px',
+                fontSize: '0.9rem',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              {showAddMusic ? '✕ Cancel' : '+ Add Music'}
+            </button>
+          )}
+        </div>
+
+        {/* Add Music Section */}
+        {showAddMusic && (
+          <div style={{
+            backgroundColor: '#181818',
+            padding: '20px',
+            borderRadius: '8px',
             marginBottom: '20px',
-            padding: '10px 24px',
-            backgroundColor: 'transparent',
-            color: '#b3b3b3',
-            border: '2px solid #b3b3b3',
-            borderRadius: '20px',
-            fontSize: '0.9rem',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#fff';
-            e.currentTarget.style.borderColor = '#fff';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#b3b3b3';
-            e.currentTarget.style.borderColor = '#b3b3b3';
-          }}
-        >
-          ← Back
-        </button>
+            border: '1px solid #282828'
+          }}>
+            <h3 style={{ color: '#fff', marginBottom: '16px', fontSize: '1.2rem' }}>Search & Add Music</h3>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  searchMusic(e.target.value);
+                }}
+                placeholder="Search for songs to add..."
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: '#121212',
+                  border: '2px solid #282828',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '1rem',
+                }}
+              />
+            </div>
+
+            {searchLoading && (
+              <p style={{ color: '#b3b3b3', textAlign: 'center', padding: '20px' }}>Searching...</p>
+            )}
+
+            {searchResults && searchResults.length > 0 && (
+              <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {searchResults.map((track, index) => (
+                  <div
+                    key={track.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '12px',
+                      backgroundColor: '#121212',
+                      borderRadius: '4px',
+                      marginBottom: '8px',
+                      transition: 'background-color 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#282828'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#121212'}
+                  >
+                    {track.album?.images?.[0]?.url && (
+                      <img
+                        src={track.album.images[0].url}
+                        alt={track.name}
+                        style={{
+                          width: '40px',
+                          height: '40px',
+                          objectFit: 'cover',
+                          borderRadius: '4px',
+                          marginRight: '12px'
+                        }}
+                      />
+                    )}
+                    
+                    <div style={{ flex: 1 }}>
+                      <p style={{ 
+                        fontWeight: 'bold', 
+                        marginBottom: '2px', 
+                        fontSize: '0.95rem',
+                        color: '#fff'
+                      }}>
+                        {track.name}
+                      </p>
+                      <p style={{ color: '#b3b3b3', fontSize: '0.85rem' }}>
+                        {track.artists?.map(a => a.name).join(', ')}
+                      </p>
+                    </div>
+                    
+                    <button
+                      onClick={() => addTrackToCurrentPlaylist(track)}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#1DB954',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '20px',
+                        fontSize: '0.85rem',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#1ed760';
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#1DB954';
+                        e.currentTarget.style.transform = 'scale(1)';
+                      }}
+                    >
+                      + Add
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {searchResults && searchResults.length === 0 && searchQuery && !searchLoading && (
+              <p style={{ color: '#b3b3b3', textAlign: 'center', padding: '20px' }}>
+                No results found for "{searchQuery}"
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Track List */}
         {loading ? (
