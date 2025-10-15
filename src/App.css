@@ -179,51 +179,159 @@
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #1e3a28 0%, #0A1310 100%);
-  padding: 20px;
+  background: linear-gradient(135deg, #111 0%, #0A1310 100%);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xl);
+  padding: 40px 32px;
+  box-shadow: var(--shadow-lg);
 }
 
 .login-content {
   text-align: center;
-  max-width: 500px;
+  max-width: 480px;
 }
 
 .login-logo {
-  font-size: 4rem;
-  font-weight: bold;
+  font-size: 3rem;
+  font-weight: 800;
   color: #fff;
-  margin-bottom: 20px;
-  letter-spacing: 2px;
+  margin-bottom: 12px;
+  letter-spacing: -0.04em;
+  font-family: var(--font-heading);
 }
 
 .login-subtitle {
-  font-size: 1.2rem;
+  font-size: 1rem;
   color: #b3b3b3;
-  margin-bottom: 40px;
+  margin-bottom: 28px;
 }
 
 .login-button {
-  padding: 14px 40px;
-  font-size: 18px;
-  font-weight: bold;
-  color: white;
-  background-color: #1DB954;
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #000;
+  background: linear-gradient(135deg, #1DB954, #1ed760);
   border: none;
-  border-radius: 50px;
+  border-radius: 14px;
   cursor: pointer;
-  box-shadow: 0 4px 20px rgba(29, 185, 84, 0.4);
-  transition: all 0.3s ease;
+  box-shadow: 0 8px 20px rgba(29, 185, 84, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
   outline: none;
+  position: relative;
+  overflow: hidden;
 }
 
 .login-button:hover {
-  background-color: #1ed760;
-  transform: scale(1.05);
-  box-shadow: 0 6px 25px rgba(29, 185, 84, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(29, 185, 84, 0.45);
+  filter: saturate(1.1);
 }
 
 .login-button:active {
-  transform: scale(0.98);
+  transform: translateY(0);
+}
+
+/* Decorative background for login */
+.login-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.3;
+}
+
+.login-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(60px);
+  opacity: 0.15;
+  animation: float 14s ease-in-out infinite;
+}
+
+.login-orb.orb-1 {
+  top: 8%;
+  left: 8%;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle at 30% 30%, rgba(30, 215, 96, 0.6), rgba(0,0,0,0) 60%),
+              linear-gradient(135deg, #1DB954, #1ed760);
+}
+
+.login-orb.orb-2 {
+  right: 10%;
+  bottom: 12%;
+  width: 240px;
+  height: 240px;
+  background: linear-gradient(135deg, #22e668, #45b7d1);
+  animation-duration: 18s;
+  opacity: 0.12;
+}
+
+.login-orb.orb-3 {
+  left: 35%;
+  top: 55%;
+  width: 160px;
+  height: 160px;
+  background: linear-gradient(135deg, #1ed760, #c8ffe0);
+  animation-duration: 12s;
+  opacity: 0.1;
+}
+
+/* Logo glow + underline */
+.login-logo {
+  background: linear-gradient(135deg, #ffffff 0%, #d7ffe9 70%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 24px rgba(29, 185, 84, 0.25);
+  position: relative;
+}
+.login-logo::after {
+  content: "";
+  display: block;
+  width: 56px;
+  height: 2px;
+  margin: 8px auto 0;
+  background: linear-gradient(90deg, transparent, #1DB954, #1ed760, transparent);
+  border-radius: 2px;
+}
+
+/* Button shimmer */
+.login-button::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -120%;
+  width: 50%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+  transform: skewX(-20deg);
+  animation: shimmer-slide 3s ease-in-out infinite;
+}
+
+@keyframes shimmer-slide {
+  0% { transform: translateX(0) skewX(-20deg); left: -120%; }
+  60% { transform: translateX(240%) skewX(-20deg); left: -120%; }
+  100% { transform: translateX(240%) skewX(-20deg); left: -120%; }
 }
 
 /* ========== PINTEREST AESTHETIC THEME ========== */
