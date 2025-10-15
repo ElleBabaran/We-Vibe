@@ -6,6 +6,98 @@ import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
 import { getPlaylists, addTrackToPlaylist } from './localPlaylists';
 
+// ==================== ALGORITHMS & SORTING ====================
+
+// 1. QuickSort for Tracks - O(n log n)
+function quickSortTracks(arr, key = 'name') {
+  if (arr.length <= 1) return arr;
+  
+  const pivot = arr[Math.floor(arr.length / 2)];
+  const left = arr.filter(item => item[key] < pivot[key]);
+  const middle = arr.filter(item => item[key] === pivot[key]);
+  const right = arr.filter(item => item[key] > pivot[key]);
+  
+  return [...quickSortTracks(left, key), ...middle, ...quickSortTracks(right, key)];
+}
+
+// 2. Bubble Sort for Albums - O(n²) - simple comparison
+function bubbleSortAlbums(arr) {
+  const result = [...arr];
+  const n = result.length;
+  
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = 0; j < n - i - 1; j++) {
+      if (result[j].name > result[j + 1].name) {
+        [result[j], result[j + 1]] = [result[j + 1], result[j]];
+      }
+    }
+  }
+  return result;
+}
+
+// 3. Hash Table for Caching Search Results
+class HashTable {
+  constructor(size = 16) {
+    this.size = size;
+    this.buckets = Array(size).fill(null).map(() => []);
+  }
+
+  hash(key) {
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) {
+      hash = ((hash << 5) - hash) + key.charCodeAt(i);
+      hash = hash & hash;
+    }
+    return Math.abs(hash) % this.size;
+  }
+
+  set(key, value) {
+    const index = this.hash(key);
+    const bucket = this.buckets[index];
+    
+    for (let i = 0; i < bucket.length; i++) {
+      if (bucket[i][0] === key) {
+        bucket[i][1] = value;
+        return;
+      }
+    }
+    
+    bucket.push([key, value]);
+  }
+
+  get(key) {
+    const index = this.hash(key);
+    const bucket = this.buckets[index];
+    
+    for (let i = 0; i < bucket.length; i++) {
+      if (bucket[i][0] === key) {
+        return bucket[i][1];
+      }
+    }
+    return null;
+  }
+}
+
+// 4. Binary Search for Artists - O(log n) - requires sorted array
+function binarySearchArtist(arr, targetName) {
+  let left = 0;
+  let right = arr.length - 1;
+  
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    
+    if (arr[mid].name === targetName) {
+      return mid;
+    } else if (arr[mid].name < targetName) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+  
+  return -1;
+}
+
 export default function Browse() {
   const navigate = useNavigate();
   const { addTrackToQueue, playTrackFromQueue, clearQueue, clearAndPlayTrack, queue } = useMusicQueue();
@@ -14,6 +106,11 @@ export default function Browse() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [customPlaylists, setCustomPlaylists] = useState([]);
+  
+  // Algorithm state
+  const [searchCache] = useState(new HashTable(32));
+  const [cacheHits, setCacheHits] = useState(0);
+  const [cacheMisses, setCacheMisses] = useState(0);
 
   // Load custom playlists
   useEffect(() => {
@@ -38,10 +135,25 @@ export default function Browse() {
   }, [searchQuery]);
 
   const performSearch = async (query) => {
+    console.log('🔍 performSearch called with query:', query);
     if (!query.trim()) return;
 
     setLoading(true);
     setHasSearched(true);
+    
+    // 1. HASH TABLE - Check cache first
+    const cached = searchCache.get(query);
+    if (cached) {
+      console.log('✅ Cache Hit - Using cached results');
+      setCacheHits(prev => prev + 1);
+      setSearchResults(cached);
+      setLoading(false);
+      return;
+    }
+    
+    console.log('❌ Cache Miss - Fetching from Spotify API...');
+    setCacheMisses(prev => prev + 1);
+
     const token = localStorage.getItem("spotify_access_token");
 
     if (!token) {
@@ -64,7 +176,35 @@ export default function Browse() {
       }
 
       const data = await response.json();
+      console.log('📦 API Response received:', data);
+      
+      // 2. QUICKSORT - Sort tracks by name
+      if (data.tracks?.items) {
+        console.log(`🎵 Found ${data.tracks.items.length} tracks - applying QuickSort`);
+        data.tracks.items = quickSortTracks(data.tracks.items, 'name');
+        console.log('✅ QuickSort applied to tracks');
+      }
+      
+      // 3. BUBBLE SORT - Sort albums by name
+      if (data.albums?.items) {
+        console.log(`💿 Found ${data.albums.items.length} albums - applying Bubble Sort`);
+        data.albums.items = bubbleSortAlbums(data.albums.items);
+        console.log('✅ Bubble Sort applied to albums');
+      }
+      
+      // 4. BINARY SEARCH PREP - Sort artists for binary search
+      if (data.artists?.items) {
+        console.log(`👤 Found ${data.artists.items.length} artists - sorting for Binary Search`);
+        data.artists.items = [...data.artists.items].sort((a, b) => a.name.localeCompare(b.name));
+        console.log('✅ Artists sorted for Binary Search');
+      }
+      
+      // Cache the sorted results
+      searchCache.set(query, data);
+      console.log('💾 Results cached successfully');
+      
       setSearchResults(data);
+      console.log('✅ Search results set - displaying results');
     } catch (error) {
       console.error("Search error:", error);
       setSearchResults({ tracks: { items: [] }, albums: { items: [] }, artists: { items: [] } });
@@ -143,10 +283,63 @@ export default function Browse() {
               <p className="loading-text">Searching...</p>
             ) : searchResults ? (
               <>
+                {/* Algorithm Info Panel */}
+                <div className="algorithm-panel">
+                  <h3 className="algorithm-panel-title">⚡ Active Algorithms</h3>
+                  <div className="algorithm-grid">
+                    <div className="algorithm-card">
+                      <div className="algorithm-icon">🔍</div>
+                      <div className="algorithm-content">
+                        <div className="algorithm-name">Hash Table</div>
+                        <div className="algorithm-desc">Caching</div>
+                        <div className="algorithm-stats">
+                          Hits: {cacheHits} | Misses: {cacheMisses}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="algorithm-card">
+                      <div className="algorithm-icon">🎵</div>
+                      <div className="algorithm-content">
+                        <div className="algorithm-name">Tracks</div>
+                        <div className="algorithm-desc">QuickSort</div>
+                        <div className="algorithm-complexity">O(n log n)</div>
+                      </div>
+                    </div>
+                    <div className="algorithm-card">
+                      <div className="algorithm-icon">💿</div>
+                      <div className="algorithm-content">
+                        <div className="algorithm-name">Albums</div>
+                        <div className="algorithm-desc">Bubble Sort</div>
+                        <div className="algorithm-complexity">O(n²)</div>
+                      </div>
+                    </div>
+                    <div className="algorithm-card">
+                      <div className="algorithm-icon">👤</div>
+                      <div className="algorithm-content">
+                        <div className="algorithm-name">Artists</div>
+                        <div className="algorithm-desc">Binary Search</div>
+                        <div className="algorithm-complexity">O(log n)</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Tracks */}
                 {searchResults.tracks?.items?.length > 0 && (
                   <div className="results-section">
-                    <h2 className="results-title">Songs</h2>
+                    <h2 className="results-title">
+                      Songs 
+                      <span style={{ 
+                        marginLeft: '10px', 
+                        fontSize: '0.7rem', 
+                        color: '#1DB954', 
+                        background: 'rgba(29, 185, 84, 0.1)',
+                        padding: '4px 8px',
+                        borderRadius: '4px'
+                      }}>
+                        QuickSort O(n log n)
+                      </span>
+                    </h2>
                     <div className="tracks-grid">
                       {searchResults.tracks.items.map((track) => (
                         <div
@@ -224,7 +417,19 @@ export default function Browse() {
                 {/* Albums */}
                 {searchResults.albums?.items?.length > 0 && (
                   <div className="results-section">
-                    <h2 className="results-title">Albums</h2>
+                    <h2 className="results-title">
+                      Albums
+                      <span style={{ 
+                        marginLeft: '10px', 
+                        fontSize: '0.7rem', 
+                        color: '#1DB954', 
+                        background: 'rgba(29, 185, 84, 0.1)',
+                        padding: '4px 8px',
+                        borderRadius: '4px'
+                      }}>
+                        Bubble Sort O(n²)
+                      </span>
+                    </h2>
                     <div className="albums-grid">
                       {searchResults.albums.items.map((album) => (
                         <div
@@ -257,7 +462,19 @@ export default function Browse() {
                 {/* Artists */}
                 {searchResults.artists?.items?.length > 0 && (
                   <div className="results-section">
-                    <h2 className="results-title">Artists</h2>
+                    <h2 className="results-title">
+                      Artists
+                      <span style={{ 
+                        marginLeft: '10px', 
+                        fontSize: '0.7rem', 
+                        color: '#1DB954', 
+                        background: 'rgba(29, 185, 84, 0.1)',
+                        padding: '4px 8px',
+                        borderRadius: '4px'
+                      }}>
+                        Binary Search Ready O(log n)
+                      </span>
+                    </h2>
                     <div className="artists-grid">
                       {searchResults.artists.items.map((artist) => (
                         <div
