@@ -215,7 +215,7 @@ function AlbumView() {
             {tracks.map((track, index) => (
               <div
                 key={track.id}
-                onClick={() => playTrack(track, index)}
+                onClick={() => playTrack(track)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

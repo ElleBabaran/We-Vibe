@@ -207,7 +207,7 @@ function Home() {
                   {albums.map((album) => (
                     <div
                       key={album.id}
-                      onClick={() => playAlbum(album)}
+                      onClick={() => viewAlbum(album)}
                       style={{
                         backgroundColor: '#181818',
                         padding: '15px',
@@ -300,7 +300,7 @@ function Home() {
                         e.currentTarget.style.transform = 'scale(1)';
                         e.currentTarget.style.boxShadow = 'none';
                       }}
-                      onClick={() => playAlbum(album)}
+                      onClick={() => viewAlbum(album)}
                     >
                       {album.images?.[0]?.url && (
                         <img

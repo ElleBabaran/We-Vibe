@@ -6,75 +6,15 @@ function MiniPlayer() {
   const location = useLocation();
   const navigate = useNavigate();
   const {
-    getCurrentTrack,
+    currentTrack,
     isPlaying,
-    setIsPlaying,
-    playNext,
-    playPrevious,
+    togglePlayPause,
+    nextTrack,
+    previousTrack,
   } = useMusicQueue();
 
   // Hide on the dedicated playback page
   const hidden = location.pathname === '/playback';
-
-  const [currentTrack, setCurrentTrack] = useState(null);
-
-  useEffect(() => {
-    setCurrentTrack(getCurrentTrack());
-  }, [getCurrentTrack]);
-
-  const togglePlayPause = async () => {
-    const token = localStorage.getItem('spotify_access_token');
-    if (!token) return;
-    try {
-      if (isPlaying) {
-        const res = await fetch('https://api.spotify.com/v1/me/player/pause', {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) setIsPlaying(false);
-      } else {
-        const res = await fetch('https://api.spotify.com/v1/me/player/play', {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) setIsPlaying(true);
-      }
-    } catch (_) {}
-  };
-
-  const next = async () => {
-    const token = localStorage.getItem('spotify_access_token');
-    if (!token) return;
-    try {
-      // Try SDK endpoint first via Web API
-      const res = await fetch('https://api.spotify.com/v1/me/player/next', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        // Fallback to local queue pointer
-        playNext();
-      }
-    } catch (_) {
-      playNext();
-    }
-  };
-
-  const prev = async () => {
-    const token = localStorage.getItem('spotify_access_token');
-    if (!token) return;
-    try {
-      const res = await fetch('https://api.spotify.com/v1/me/player/previous', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        playPrevious();
-      }
-    } catch (_) {
-      playPrevious();
-    }
-  };
 
   if (hidden || !currentTrack) return null;
 
@@ -141,7 +81,7 @@ function MiniPlayer() {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flex: 1 }}>
         <button 
-          onClick={prev} 
+          onClick={nextTrack}
           onMouseEnter={(e) => {
             e.target.style.background = 'rgba(255, 255, 255, 0.2)';
             e.target.style.transform = 'scale(1.05)';
@@ -195,8 +135,8 @@ function MiniPlayer() {
           }}>
           {isPlaying ? '⏸' : '▶'}
         </button>
-        <button 
-          onClick={next} 
+              <button 
+                onClick={previousTrack}
           onMouseEnter={(e) => {
             e.target.style.background = 'rgba(255, 255, 255, 0.2)';
             e.target.style.transform = 'scale(1.05)';

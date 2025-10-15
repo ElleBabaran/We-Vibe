@@ -11,6 +11,7 @@ import Playlist from "./Playlist";
 import MiniPlayer from "./MiniPlayer";
 
 function App() {
+  console.log('🚀 App component rendering...');
   return (
     <MusicQueueProvider>
       <Router>
