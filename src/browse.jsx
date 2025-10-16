@@ -290,46 +290,6 @@ export default function Browse() {
               <p className="loading-text">Searching...</p>
             ) : searchResults ? (
               <>
-                {/* Algorithm Info Panel */}
-                <div className="algorithm-panel">
-                  <h3 className="algorithm-panel-title">⚡ Active Algorithms</h3>
-                  <div className="algorithm-grid">
-                    <div className="algorithm-card">
-                      <div className="algorithm-icon">🔍</div>
-                      <div className="algorithm-content">
-                        <div className="algorithm-name">Hash Table</div>
-                        <div className="algorithm-desc">Caching</div>
-                        <div className="algorithm-stats">
-                          Hits: {cacheHits} | Misses: {cacheMisses}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="algorithm-card">
-                      <div className="algorithm-icon">🎵</div>
-                      <div className="algorithm-content">
-                        <div className="algorithm-name">Tracks</div>
-                        <div className="algorithm-desc">QuickSort</div>
-                        <div className="algorithm-complexity">O(n log n)</div>
-                      </div>
-                    </div>
-                    <div className="algorithm-card">
-                      <div className="algorithm-icon">💿</div>
-                      <div className="algorithm-content">
-                        <div className="algorithm-name">Albums</div>
-                        <div className="algorithm-desc">Bubble Sort</div>
-                        <div className="algorithm-complexity">O(n²)</div>
-                      </div>
-                    </div>
-                    <div className="algorithm-card">
-                      <div className="algorithm-icon">👤</div>
-                      <div className="algorithm-content">
-                        <div className="algorithm-name">Artists</div>
-                        <div className="algorithm-desc">Binary Search</div>
-                        <div className="algorithm-complexity">O(log n)</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Tracks */}
                 {searchResults.tracks?.items?.length > 0 && (
