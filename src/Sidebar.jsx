@@ -11,7 +11,7 @@ export default function Sidebar() {
       <ul style={{ marginBottom: '32px' }}>
         <li>
           <img src="/Icons/home.png" alt="home" className='icon'/><Link to="/home">Home</Link></li>
-        <li> 
+        <li>
           <img src="/Icons/search.png" alt="browse" className='icon'/><Link to="/browse">Browse</Link></li>
         <li>
           <img src= "/Icons/antenna.png" alt="Podcast" className='icon'/><Link to="/podcast">Podcasts</Link></li>
@@ -29,7 +29,7 @@ export default function Sidebar() {
         }}>Your Library</h2>
         <ul style={{ margin: '0', padding: '0' }}>
           <li><Link to="/playlist">Playlists</Link></li>
-          <li><Link to="/recents">Recents</Link></li>
+          <li><Link to="/genre">Genres</Link></li>
           <li><Link to="mdf">Made for you</Link></li>
           <li><Link to="artist">Artists</Link></li>
         </ul>

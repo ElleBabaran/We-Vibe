@@ -71,16 +71,17 @@ export default function Login() {
 
   return (
     <div className="login-container">
+      {/* Background video */}
+      <video autoPlay muted loop className="background-video" aria-hidden>
+        <source src="/Banner/bg.mp4" type="video/mp4" />
+      </video>
       {/* Decorative background */}
       <div className="login-bg" aria-hidden>
-        <div className="login-orb orb-1" />
-        <div className="login-orb orb-2" />
-        <div className="login-orb orb-3" />
-        <div className="login-grid-overlay" />
       </div>
 
-      <div className="login-card login-content" style={{ zIndex: 1 }}>
-        <h1 className="login-logo">WeVibe</h1>
+      <img src="/Banner/title.png" alt="WeVibe" className="login-logo" style={{ width: 'auto', height: '21rem', objectFit: 'contain', position: 'absolute', top: '12%', left: '50%', transform: 'translateX(-50%)', zIndex: 2 }} />
+
+      <div className="login-card login-content" style={{ zIndex: 1, marginTop: '15%' }}>
         <p className="login-subtitle">Connect your Spotify account and discover your perfect musical journey.</p>
 
         <button className="login-button" onClick={handleLogin}>

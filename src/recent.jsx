@@ -4,17 +4,8 @@ import Sidebar from "./Sidebar";
 import { useMusicQueue } from "./MusicQueueContext";
 import "./App.css";
 
-
 const STORAGE_KEY = "wevibe_recent";
 const MAX_RECENT = 50;
-
-function hashString(str) {
-    let hash = 5381;
-    for (let i = 0; i < str.length; i++) {
-        hash = ((hash << 5) + hash) + str.charCodeAt(i);
-    }
-    return hash >>> 0;
-}
 
 export function addToRecent(track) {
     if (!track || !track.id || !track.src) return;
@@ -39,7 +30,7 @@ export default function Recent() {
 
     useEffect(() => {
         loadRecent();
-        
+
         function onStorage(e) {
             if (e.key === STORAGE_KEY) loadRecent();
         }
@@ -57,13 +48,21 @@ export default function Recent() {
         }
     }
 
+    function getSortedTracks() {
+        let sorted = [...recent];
+        const compareFn = (a, b) => {
+            const result = (a.addedAt || 0) - (b.addedAt || 0);
+            return sortOrder === 'asc' ? result : -result;
+        };
+        sorted.sort(compareFn);
+        return sorted;
+    }
+
     async function playTrack(track) {
         const sortedTracks = getSortedTracks();
         const startIndex = sortedTracks.findIndex(t => t.id === track.id);
         if (startIndex !== -1) {
             clearAndPlayPlaylist(sortedTracks, startIndex);
-            addToRecent(track);
-            loadRecent();
         }
     }
 
@@ -82,17 +81,6 @@ export default function Recent() {
             localStorage.removeItem(STORAGE_KEY);
             setRecent([]);
         } catch {}
-    }
-
-
-    function getSortedTracks() {
-        let sorted = [...recent];
-        const compareFn = (a, b) => {
-            const result = (a.addedAt || 0) - (b.addedAt || 0);
-            return sortOrder === 'asc' ? result : -result;
-        };
-        sorted.sort(compareFn);
-        return sorted;
     }
 
     return (
@@ -317,4 +305,3 @@ export default function Recent() {
         </div>
     );
 }
-

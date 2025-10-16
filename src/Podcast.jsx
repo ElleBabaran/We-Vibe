@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
-import { addToRecent } from "./recent";
 import "./App.css";
 
 export default function Podcast() {
@@ -90,12 +89,6 @@ export default function Podcast() {
 
       clearAndPlayPlaylist(tracks, index);
 
-      // Add all episodes to recent
-      tracks.forEach(track => {
-        if (track) {
-          addToRecent(track);
-        }
-      });
     } else {
       alert("Episode not available for playback.");
     }

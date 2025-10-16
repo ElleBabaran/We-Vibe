@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { addToRecent } from './recent';
 
 const MusicQueueContext = createContext();
 
@@ -243,7 +244,10 @@ export const MusicQueueProvider = ({ children }) => {
         console.log('✅ GLOBAL: Track started successfully');
         setCurrentTrack(track);
         setIsPlaying(true);
-        
+
+        // Add to recent tracks
+        addToRecent(track);
+
         // Increment play count
         try {
           const counts = JSON.parse(localStorage.getItem('wv_play_counts') || '{}');

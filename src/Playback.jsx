@@ -106,16 +106,27 @@ function Playback() {
   } else {
     baseTracks = fallbackTracks;
   }
-  
+
   // Remove duplicates based on track ID or URI
   const uniqueTracks = baseTracks.filter((track, index) => {
     if (!track) return false;
-    return baseTracks.findIndex(t => 
+    return baseTracks.findIndex(t =>
       (t?.id && t.id === track?.id) || (t?.uri && t.uri === track?.uri)
     ) === index;
   });
-  
+
+  // Get recent tracks for display
+  const getRecentTracks = () => {
+    try {
+      const raw = localStorage.getItem('wevibe_recent');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  };
+
   let displayTracks = uniqueTracks;
+  const recentTracks = getRecentTracks();
   const handleClickUpNext = async (track) => {
     if (!track) {
       console.error('❌ handleClickUpNext: No track provided');
@@ -164,6 +175,8 @@ function Playback() {
         const kb = b?.id || b?.uri;
         return (counts[kb] || 0) - (counts[ka] || 0);
       });
+    } else if (sortMode === "recent") {
+      displayTracks = [...recentTracks];
     }
   } catch (_) {}
 
@@ -497,6 +510,7 @@ function Playback() {
                 <option value="queue">Queue Order</option>
                 <option value="mostPlayed">Most Played</option>
                 <option value="az">A–Z</option>
+                <option value="recent">Recently Played</option>
               </select>
             </div>
 
