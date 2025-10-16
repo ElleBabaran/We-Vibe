@@ -204,6 +204,9 @@ export default function Browse() {
       searchCache.set(query, data);
       console.log('💾 Results cached successfully');
       
+      try {
+        localStorage.setItem('browse_last_artists', JSON.stringif(data.artists?.items || []));
+      } catch (_) {}
       setSearchResults(data);
       console.log('✅ Search results set - displaying results');
     } catch (error) {
@@ -344,6 +347,7 @@ export default function Browse() {
                         QuickSort O(n log n)
                       </span>
                     </h2>
+                    <h2 className="results-title">Songs</h2>
                     <div className="tracks-grid">
                       {searchResults.tracks.items.map((track) => (
                         <div
@@ -434,6 +438,7 @@ export default function Browse() {
                         Bubble Sort O(n²)
                       </span>
                     </h2>
+                    <h2 className="results-title">Albums</h2>
                     <div className="albums-grid">
                       {searchResults.albums.items.map((album) => (
                         <div
@@ -479,11 +484,14 @@ export default function Browse() {
                         Binary Search Ready O(log n)
                       </span>
                     </h2>
+                    <h2 className="results-title">Artists</h2>
                     <div className="artists-grid">
                       {searchResults.artists.items.map((artist) => (
                         <div
                           key={artist.id}
                           className="result-item artist-item"
+                          onClick={() => navigate(`/artist/${artist.id}`, { state: { artist } })}
+                          style={{ cursor: `pointer` }}
                         >
                           {artist.images?.[0]?.url && (
                             <img
