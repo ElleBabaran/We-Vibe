@@ -334,19 +334,6 @@ export default function Browse() {
                 {/* Tracks */}
                 {searchResults.tracks?.items?.length > 0 && (
                   <div className="results-section">
-                    <h2 className="results-title">
-                      Songs 
-                      <span style={{ 
-                        marginLeft: '10px', 
-                        fontSize: '0.7rem', 
-                        color: '#1DB954', 
-                        background: 'rgba(29, 185, 84, 0.1)',
-                        padding: '4px 8px',
-                        borderRadius: '4px'
-                      }}>
-                        QuickSort O(n log n)
-                      </span>
-                    </h2>
                     <h2 className="results-title">Songs</h2>
                     <div className="tracks-grid">
                       {searchResults.tracks.items.map((track) => (
@@ -425,19 +412,6 @@ export default function Browse() {
                 {/* Albums */}
                 {searchResults.albums?.items?.length > 0 && (
                   <div className="results-section">
-                    <h2 className="results-title">
-                      Albums
-                      <span style={{ 
-                        marginLeft: '10px', 
-                        fontSize: '0.7rem', 
-                        color: '#1DB954', 
-                        background: 'rgba(29, 185, 84, 0.1)',
-                        padding: '4px 8px',
-                        borderRadius: '4px'
-                      }}>
-                        Bubble Sort O(n²)
-                      </span>
-                    </h2>
                     <h2 className="results-title">Albums</h2>
                     <div className="albums-grid">
                       {searchResults.albums.items.map((album) => (
@@ -471,19 +445,6 @@ export default function Browse() {
                 {/* Artists */}
                 {searchResults.artists?.items?.length > 0 && (
                   <div className="results-section">
-                    <h2 className="results-title">
-                      Artists
-                      <span style={{ 
-                        marginLeft: '10px', 
-                        fontSize: '0.7rem', 
-                        color: '#1DB954', 
-                        background: 'rgba(29, 185, 84, 0.1)',
-                        padding: '4px 8px',
-                        borderRadius: '4px'
-                      }}>
-                        Binary Search Ready O(log n)
-                      </span>
-                    </h2>
                     <h2 className="results-title">Artists</h2>
                     <div className="artists-grid">
                       {searchResults.artists.items.map((artist) => (
