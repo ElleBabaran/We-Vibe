@@ -8,6 +8,8 @@ import AlbumView from "./AlbumView";
 import Browse from "./browse";
 import Account from "./Account";
 import Playlist from "./Playlist";
+import Podcast from "./Podcast";
+import Recent from "./recent";
 import MiniPlayer from "./MiniPlayer";
 
 function App() {
@@ -24,6 +26,8 @@ function App() {
           <Route path="/playback" element={<Playback />} />
           <Route path="/album" element={<AlbumView />} />
           <Route path="/playlist" element={<Playlist />} />
+          <Route path="/podcast" element={<Podcast />} />
+          <Route path="/recents" element={<Recent />} />
         </Routes>
         {/* Persistent bottom mini-player (hidden on /playback internally) */}
         <MiniPlayer />

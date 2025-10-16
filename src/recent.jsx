@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
+import { useMusicQueue } from "./MusicQueueContext";
 import "./App.css";
 
 
@@ -30,12 +32,10 @@ export function addToRecent(track) {
 }
 
 export default function Recent() {
+    const navigate = useNavigate();
+    const { clearAndPlayPlaylist } = useMusicQueue();
     const [recent, setRecent] = useState([]);
-    const [playingId, setPlayingId] = useState(null);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [error, setError] = useState(null);
     const [sortOrder, setSortOrder] = useState('desc');
-    const audioRef = useRef(null);
 
     useEffect(() => {
         loadRecent();
@@ -58,29 +58,13 @@ export default function Recent() {
     }
 
     async function playTrack(track) {
-        setError(null);
-        try {
-            if (playingId === track.id && isPlaying) {
-                audioRef.current?.pause();
-                setIsPlaying(false);
-                return;
-            }
-            
-            if (audioRef.current) {
-                audioRef.current.src = track.src;
-                audioRef.current.play();
-                setPlayingId(track.id);
-                setIsPlaying(true);
-                addToRecent(track);
-                loadRecent();
-            }
-        } catch (err) {
-            setError("Unable to play this track.");
+        const sortedTracks = getSortedTracks();
+        const startIndex = sortedTracks.findIndex(t => t.id === track.id);
+        if (startIndex !== -1) {
+            clearAndPlayPlaylist(sortedTracks, startIndex);
+            addToRecent(track);
+            loadRecent();
         }
-    }
-
-    function onEnded() {
-        setIsPlaying(false);
     }
 
     function removeItem(id) {
@@ -90,11 +74,6 @@ export default function Recent() {
             const filtered = list.filter((t) => t.id !== id);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
             loadRecent();
-            if (playingId === id) {
-                audioRef.current.pause();
-                setPlayingId(null);
-                setIsPlaying(false);
-            }
         } catch {}
     }
 
@@ -102,63 +81,18 @@ export default function Recent() {
         try {
             localStorage.removeItem(STORAGE_KEY);
             setRecent([]);
-            if (audioRef.current) {
-                audioRef.current.pause();
-            }
-            setPlayingId(null);
-            setIsPlaying(false);
         } catch {}
     }
 
 
-    function quickSort(arr, compareFn) {
-        if (arr.length <= 1) return arr;
-        const pivot = arr[Math.floor(arr.length / 2)];
-        const left = arr.filter(item => compareFn(item, pivot) < 0);
-        const middle = arr.filter(item => compareFn(item, pivot) === 0);
-        const right = arr.filter(item => compareFn(item, pivot) > 0);
-        return [...quickSort(left, compareFn), ...middle, ...quickSort(right, compareFn)];
-    }
-
-    function mergeSort(arr, compareFn) {
-        if (arr.length <= 1) return arr;
-        const mid = Math.floor(arr.length / 2);
-        const left = mergeSort(arr.slice(0, mid), compareFn);
-        const right = mergeSort(arr.slice(mid), compareFn);
-        return merge(left, right, compareFn);
-    }
-
-    function merge(left, right, compareFn) {
-        const result = [];
-        let i = 0, j = 0;
-        while (i < left.length && j < right.length) {
-            if (compareFn(left[i], right[j]) <= 0) {
-                result.push(left[i++]);
-            } else {
-                result.push(right[j++]);
-            }
-        }
-        return result.concat(left.slice(i)).concat(right.slice(j));
-    }
-
     function getSortedTracks() {
         let sorted = [...recent];
         const compareFn = (a, b) => {
-           
             const result = (a.addedAt || 0) - (b.addedAt || 0);
             return sortOrder === 'asc' ? result : -result;
         };
-
-
-        sorted = mergeSort(sorted, compareFn);
+        sorted.sort(compareFn);
         return sorted;
-    }
-
-    function formatTime(seconds) {
-        if (isNaN(seconds)) return "0:00";
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
     return (
@@ -247,7 +181,15 @@ export default function Recent() {
                                     e.currentTarget.querySelector('.play-overlay').style.opacity = '0';
                                     e.currentTarget.querySelector('.hover-actions').style.opacity = '0';
                                 }}
-                                onClick={() => playTrack(t)}
+                                onClick={(e) => {
+                                    if (e.target.closest('.hover-actions')) return;
+                                    playTrack(t);
+                                }}
+                                onDoubleClick={() => {
+                                    if (t.album?.id) {
+                                        navigate('/album', { state: { album: t.album } });
+                                    }
+                                }}
                             >
                                 {/* Album Art */}
                                 {t.album?.images?.[0]?.url ? (
@@ -330,7 +272,7 @@ export default function Recent() {
                                     className="play-overlay"
                                 >
                                     <span style={{ color: '#fff', fontSize: '1.2rem' }}>
-                                        {playingId === t.id && isPlaying ? '❚❚' : '▶️'}
+                                        ▶️
                                     </span>
                                 </div>
 
@@ -371,150 +313,6 @@ export default function Recent() {
                         ))}
                     </div>
                 )}
-
-                <div style={{ marginTop: '40px' }}>
-                    {/* Custom Audio Player */}
-                    <div style={{
-                        backgroundColor: '#181818',
-                        borderRadius: '12px',
-                        padding: '20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '20px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-                    }}>
-                        {/* Play/Pause Button */}
-                        <button
-                            onClick={() => {
-                                if (isPlaying) {
-                                    audioRef.current?.pause();
-                                } else {
-                                    audioRef.current?.play();
-                                }
-                            }}
-                            style={{
-                                width: '60px',
-                                height: '60px',
-                                backgroundColor: '#1DB954',
-                                border: 'none',
-                                borderRadius: '50%',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '1.5rem',
-                                color: '#fff',
-                                transition: 'all 0.2s',
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                        >
-                            {isPlaying ? '⏸️' : '▶️'}
-                        </button>
-
-                        {/* Track Info */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{
-                                color: '#fff',
-                                fontWeight: 'bold',
-                                marginBottom: '4px',
-                                fontSize: '1rem',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                            }}>
-                                {playingId ? recent.find(t => t.id === playingId)?.name || 'Unknown Track' : 'No track selected'}
-                            </p>
-                            <p style={{
-                                color: '#b3b3b3',
-                                fontSize: '0.9rem',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                            }}>
-                                {playingId ? recent.find(t => t.id === playingId)?.artists?.map(a => a.name).join(', ') || 'Unknown Artist' : ''}
-                            </p>
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ color: '#b3b3b3', fontSize: '0.8rem', minWidth: '35px' }}>
-                                {audioRef.current ? formatTime(audioRef.current.currentTime) : '0:00'}
-                            </span>
-                            <input
-                                type="range"
-                                min="0"
-                                max={audioRef.current?.duration || 0}
-                                value={audioRef.current?.currentTime || 0}
-                                onChange={(e) => {
-                                    if (audioRef.current) {
-                                        audioRef.current.currentTime = e.target.value;
-                                    }
-                                }}
-                                style={{
-                                    flex: 1,
-                                    height: '4px',
-                                    background: '#535353',
-                                    borderRadius: '2px',
-                                    outline: 'none',
-                                    cursor: 'pointer',
-                                    appearance: 'none',
-                                }}
-                            />
-                            <span style={{ color: '#b3b3b3', fontSize: '0.8rem', minWidth: '35px' }}>
-                                {audioRef.current ? formatTime(audioRef.current.duration) : '0:00'}
-                            </span>
-                        </div>
-
-                        {/* Volume Control */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ color: '#b3b3b3', fontSize: '1.2rem' }}>🔊</span>
-                            <input
-                                type="range"
-                                min="0"
-                                max="1"
-                                step="0.1"
-                                defaultValue="0.7"
-                                onChange={(e) => {
-                                    if (audioRef.current) {
-                                        audioRef.current.volume = e.target.value;
-                                    }
-                                }}
-                                style={{
-                                    width: '80px',
-                                    height: '4px',
-                                    background: '#535353',
-                                    borderRadius: '2px',
-                                    outline: 'none',
-                                    cursor: 'pointer',
-                                    appearance: 'none',
-                                }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Hidden Audio Element */}
-                    <audio
-                        ref={audioRef}
-                        onEnded={onEnded}
-                        onPause={() => setIsPlaying(false)}
-                        onPlay={() => setIsPlaying(true)}
-                        style={{ display: 'none' }}
-                    />
-
-                    {error && (
-                        <div style={{
-                            color: '#ff4757',
-                            marginTop: '10px',
-                            padding: '10px',
-                            backgroundColor: '#2d1b1b',
-                            borderRadius: '8px',
-                            border: '1px solid #ff4757'
-                        }}>
-                            {error}
-                        </div>
-                    )}
-                </div>
             </div>
         </div>
     );

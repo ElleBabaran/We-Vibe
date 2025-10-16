@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
+import { addToRecent } from "./recent";
 import "./App.css";
 
 function Home() {
@@ -80,10 +81,13 @@ function Home() {
 
   const playTrack = async (track) => {
     if (!track) return;
-    
+
     // Clear queue and play this track atomically
     clearAndPlayTrack(track);
-    
+
+    // Add to recent tracks
+    addToRecent(track);
+
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {
       navigate('/playback');
@@ -100,30 +104,35 @@ function Home() {
   
   const playAlbum = async (album) => {
     if (!album) return;
-    
+
     const token = localStorage.getItem("spotify_access_token");
     if (!token) return;
-    
+
     try {
       // Fetch album tracks
       const response = await fetch(`https://api.spotify.com/v1/albums/${album.id}/tracks`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         const tracks = data.items || [];
-        
+
         if (tracks.length > 0) {
           // Add album info to each track
           const tracksWithAlbum = tracks.map(track => ({
             ...track,
             album: album
           }));
-          
+
           // Play the album
           clearAndPlayPlaylist(tracksWithAlbum, 0);
-          
+
+          // Add the first track to recent (representing the album play)
+          if (tracksWithAlbum[0]) {
+            addToRecent(tracksWithAlbum[0]);
+          }
+
           // Navigate to playback page if not already there
           if (window.location.pathname !== '/playback') {
             navigate('/playback');

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
+import { addToRecent } from "./recent";
 import "./App.css";
 
 function AlbumView() {
@@ -42,13 +43,16 @@ function AlbumView() {
 
   const playTrack = (track) => {
     if (!track) return;
-    
+
     // Ensure the queued item contains album metadata for artwork
     const trackWithAlbum = { ...track, album };
 
     // Clear queue and play this track atomically
     clearAndPlayTrack(trackWithAlbum);
-    
+
+    // Add to recent tracks
+    addToRecent(trackWithAlbum);
+
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {
       navigate('/playback');
@@ -61,10 +65,15 @@ function AlbumView() {
       ...t,
       album: album,
     }));
-    
+
     // Clear queue and play entire album atomically
     clearAndPlayPlaylist(tracksWithAlbum, 0);
-    
+
+    // Add the first track to recent (representing the album play)
+    if (tracksWithAlbum[0]) {
+      addToRecent(tracksWithAlbum[0]);
+    }
+
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {
       navigate('/playback');

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
 import { getPlaylists, createPlaylist as lpCreate, addTrackToPlaylist, addTracksToPlaylist, moveTrack, removeTrack, getPlaylist, updatePlaylistCover, deletePlaylist, updatePlaylistName, fileToBase64 } from './localPlaylists';
+import { addToRecent } from "./recent";
 import "./App.css";
 
 function Playlist() {
@@ -103,10 +104,13 @@ function Playlist() {
 
   const playTrack = (track) => {
     if (!track) return;
-    
+
     // Clear queue and play this track atomically
     clearAndPlayTrack(track);
-    
+
+    // Add the track to recent
+    addToRecent(track);
+
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {
       navigate('/playback');
@@ -115,10 +119,17 @@ function Playlist() {
 
   const playPlaylist = () => {
     if (tracks.length === 0) return;
-    
+
     // Clear queue and play entire playlist atomically
     clearAndPlayPlaylist(tracks, 0);
-    
+
+    // Add all tracks to recent
+    tracks.forEach(track => {
+      if (track) {
+        addToRecent(track);
+      }
+    });
+
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {
       navigate('/playback');

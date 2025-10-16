@@ -14,7 +14,7 @@ export default function Sidebar() {
         <li> 
           <img src="/Icons/search.png" alt="browse" className='icon'/><Link to="/browse">Browse</Link></li>
         <li>
-          <img src= "/Icons/antenna.png" alt="radio" className='icon'/><Link to="/radio">Radio</Link></li>
+          <img src= "/Icons/antenna.png" alt="Podcast" className='icon'/><Link to="/podcast">Podcasts</Link></li>
       </ul>
       
       {/* Your Library Section */}

@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useMusicQueue } from "./MusicQueueContext";
 import Sidebar from "./Sidebar";
 import { getPlaylists, addTrackToPlaylist } from './localPlaylists';
+import { addToRecent } from "./recent";
 
 // ==================== ALGORITHMS & SORTING ====================
 
@@ -220,12 +221,15 @@ export default function Browse() {
 
   const playTrack = (track) => {
     if (!track) return;
-    
+
     console.log('🎵 Browse: playTrack called with:', track.name, track.uri);
-    
+
     // Clear queue and play this track atomically
     clearAndPlayTrack(track);
-    
+
+    // Add to recent tracks
+    addToRecent(track);
+
     // Navigate to playback page if not already there
     if (window.location.pathname !== '/playback') {
       navigate('/playback');
